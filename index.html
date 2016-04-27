@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+body {
+  font: 10px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+  opacity: 0;
+}
+
+.dot-active {
+  opacity: 1;
+}
+
+.area {
+    fill: lightsteelblue;
+    stroke-width: 0;
+    opacity: 0.5;
+}
+
+svg {
+  display: block;
+  margin: 0px auto;
+}
+
+</style>
+<body>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="javascripts/rbinom.js"></script>
+<script src="javascripts/randoms.js"></script>
+<script src="javascripts/step.js"></script>
+<script src="javascripts/draw_plot.js"></script>
+<script src="javascripts/shade_plot.js"></script>
+<script>
+
+    // layout
+    var golden_ratio = 1.618,
+        width = 900,
+        total_height = 650, // height of whole container
+        height1 = total_height/golden_ratio,
+        height2 = height1/golden_ratio; // height of lower container, with scatter plots
+
+    var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", total_height)
+      .append("g")
+
+    // data init
+    var wts = runifo(2, 3) // will be the true weights
+    var eta = 1
+    var n = 100
+    var scale = 3
+    var data = simulate_training_data(wts, eta, n, scale)
+
+    var first_plot_group = svg.append("g")
+        .attr("id", "first_plot_group")
+        .attr("transform", "translate(0," + height1 + ")")
+    var second_plot_group = svg.append("g")
+        .attr("id", "second_plot_group")
+        .attr("transform", "translate(" + (height2+50) + "," + height1 + ")")
+    // draw the first plot with the points plotted
+    draw_plot([0,height2], [0,height2], data, first_plot_group, 'dot dot-active')
+    draw_plot([0,height2], [0,height2], data, second_plot_group, 'dot')
+    shade_plot([0,height2], [0,height2], wts, scale, first_plot_group)
+
+    var step_duration = 100
+    var update_shaded = function(weights, delay_offset) {
+        setTimeout(function() {
+          d3.selectAll('#second_plot_group .area').remove()
+          shade_plot([0,height2], [0,height2], weights, scale, second_plot_group)
+        }, delay_offset * step_duration)
+    }
+
+    // now iterate e.g. perceptron
+    // init weights
+    var weights = runifo(2,3)
+    var points = d3.selectAll('#second_plot_group .dot')[0]
+    var iters = 100
+    for (var iter = 0; iter < iters; iter ++) {
+      for (var i = 0; i < n-1; i ++) {
+          point = data[i]        
+          res = step(point, weights)
+          weights = res.weights
+          update_shaded(weights, i*iter)
+          if (iter == 0) { d3.select(points[i]).transition().delay(i * step_duration).attr('class', 'dot dot-active') }
+      }
+    }
+</script>
+
