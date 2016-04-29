@@ -45,11 +45,11 @@ svg {
 
     // layout
     var golden_ratio = 1.618,
-        width = 900,
-        total_height = 650, // height of whole container
+        width = 1024,
+        total_height = 64, // height of whole container
         height1 = total_height/golden_ratio,
         height2 = height1/golden_ratio; // height of lower container, with scatter plots
-
+        console.log(height2)
     var svg = d3.select("body").append("svg")
         .attr("width", width)
         .attr("height", total_height)
