@@ -9,22 +9,49 @@ var shade_plot = function(yrange, xrange, wts, scale, group) {
     x.domain([-scale,scale]).nice();
     y.domain([-scale,scale]).nice();
 
+    // NOT SUPER HAPPY ABOUT THIS, BUT THERE IS STILL SOME BUGS IN THE AREA-CREATING CODE BELOW
+    var height = yrange[1]-yrange[0]
+    var clip = svg.append("svg:clipPath")
+      .attr("id", "clip")
+    .append("svg:rect")
+      .attr('width', height)
+      .attr('height', height)
+      .attr('x', xrange[0])
+      .attr('y', yrange[0]);
+
     var area = d3.svg.area()
       .x(function(d) {return x(d[0]);})
-      .y0(height2)
-      .y1(function(d) {return y(d[1]);});
+      .y0(yrange[1])
+      .y1(function(d) {
+        yval = y(d[1])
+        return yval;
+      });
 
-    // shade the area above the true dividing line
-    var x1_range = d3.range(-scale,scale+1)
-
-    var x2_vals = []
-    x1_range.forEach(function(x1) { x2_vals.push(-x1*(wts[0]/wts[1])) })
-
-    var shading_pts = x1_range.map(function (e, i) {
-        return [x1_range[i], x2_vals[i]];
+    var w = wts
+    if (w[0] * w[1] > 0) {
+        if (w[0] > w[1]) {
+            x1_vals = [-scale, -scale*w[1]/w[0], scale*w[1]/w[0], scale]
+            x2_vals = [scale, scale, -scale, -scale]
+        } else {
+            x1_vals = [-scale, -scale, scale, scale]
+            x2_vals = [scale, scale*w[0]/w[1], -scale*w[0]/w[1], -scale]
+        }
+    } else {
+        if (Math.abs(w[0]) < Math.abs(w[1])) {
+            x1_vals = [-scale, -scale, scale, scale]
+            x2_vals = [scale, scale*w[0]/w[1], -scale*w[0]/w[1], -scale]
+        } else {
+            x1_vals = [scale*w[1]/w[0], -scale*w[1]/w[0], scale, scale]
+            x2_vals = [-scale, scale, scale, -scale]
+        }
+    }
+    var shading_pts = x1_vals.map(function (e, i) {
+        return [x1_vals[i], x2_vals[i]];
     });
+
     group.append("path")
         .datum(shading_pts)
         .attr("class", "area")
-        .attr("d", area);
+        .attr("d", area)
+        .attr('clip-path', "url(#clip)");
 } // end shade plot
