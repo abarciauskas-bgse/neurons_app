@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+body {
+  font: 10px sans-serif;
+}
+
+svg {
+  display: block;
+  margin: 0px auto;
+}
+
+.negative_region {
+    opacity: 0.3;
+}
+
+.pos_bar {
+    fill: #fefefe;
+    stroke: #333;
+}
+
+.neg_bar {
+    fill: #333;
+    stroke: #fefefe;
+}
+
+.wx_bar {
+    opacity: 0;
+}
+
+.link {
+  fill: none;
+  stroke: #000;
+  opacity: .3;
+}
+
+</style>
+<body>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script>
+
+    // layout
+    var golden_ratio = 1.618,
+        width = 1024,
+        total_height = 768, // height of whole container
+        height1 = total_height/golden_ratio,
+        height2 = height1/golden_ratio;
+
+    var svg = d3.select("body").append("svg")
+        .attr("width", width)
+        .attr("height", total_height)
+      .append("g")
+
+    // TRANSFER FUNCTION: Multiply plots
+    var transfer_multiply_height = height2
+
+    // scales for transfer function
+    var transfer_multiply_xscale = d3.scale.linear()
+        .range([0, transfer_multiply_height]);
+    var transfer_multiply_yscale = d3.scale.linear()
+        .domain([-6,0,6])
+        .range([-transfer_multiply_height/2, 0, transfer_multiply_height/2]);
+
+    // wtoffset for weights
+    var wtoffset = transfer_multiply_height/2
+
+    // group for first variable
+    var transfer_multiply_group_1 = svg.append('svg:g')
+        .attr('id', 'transfer_group_1')
+        .attr('class', 'transfer_group_multiply')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height)
+
+    transfer_multiply_group_1.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height/2)
+        .attr('y', transfer_multiply_height/2)
+        .attr('fill', '#333')
+
+    var transfer_multiply_group_2 = svg.append('svg:g')
+        .attr('id', 'transfer_group_2')
+        .attr('class', 'transfer_group_multiply')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height)
+        .attr('transform', "translate(0," + transfer_multiply_height + ")")
+
+    transfer_multiply_group_2.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height/2)
+        .attr('y', transfer_multiply_height/2)
+        .attr('fill', '#333')
+
+    var barwidth = 10
+
+    var create_interval_data = function(x, type, weight) {
+        // create unit and modulo of data
+        var x_data = d3.range(1, Math.abs(Math.round(x))).map(function() {
+            return (x < 0) ? -1 : 1
+        })
+        x_data.push(x%1)
+        x_data = x_data.map(function(interval, idx) {
+            return {original: x, type: type, value: interval, index: idx, weight: weight}
+        })
+        return x_data   
+    }
+    line = d3.svg.line()
+        //.interpolate('basis');
+    var offset = 2
+    var bandWidth = 140   
+    var linkLine = function(start) {
+        return function(l) {
+            console.log(l)
+            var bandWidth = wtoffset,
+                startx = 0,
+                sourcey = 0//Math.abs(transfer_multiply_yscale(l.value)) //+ transfer_multiply_height/2,
+                targety = 0//Math.abs(transfer_multiply_yscale(l.value)) //+ transfer_multiply_height/2,
+                points = start ? 
+                    [
+                        [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ] 
+                    ] :
+                    [
+                        [ 0, transfer_multiply_height-l.ypos ],
+                        [ wtoffset, transfer_multiply_height-l.ypos ],
+                        [ wtoffset, transfer_multiply_height-l.ypos ],
+                        [ 0, transfer_multiply_height-l.ypos ]
+                    ];       
+            return line(points);
+        }
+    }        
+    var add_links = function(node_data) {
+        var links = transfer_multiply_group_1.selectAll('path.link')
+            .data(function(n, i) { return [node_data[i]] })
+          .enter().append('svg:path')
+            .attr('class', 'link')
+            .style('stroke-width', function(d) { return Math.abs(transfer_multiply_yscale(d.original))})
+            .attr('d', linkLine(true))
+            .transition().duration(1000)
+              .attr('d', linkLine())
+    }    
+    // function to add x and w to transfer multiply group plot
+    var addwx_multiply = function(x, w, group, group_indx) {
+        // create unit and modulo of data
+        x_data = create_interval_data(x, 'x', w)
+        x_start_data = create_interval_data(x, 'x_start', w)
+        w_data = create_interval_data(w, 'w', w)
+        wx_data = create_interval_data(x*w, 'wx', w)
+
+        x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data)
+        var bars = group.selectAll('multiply_bar')
+          .data(x_data)
+          .enter().append('svg:rect')
+          .attr('class', function(d) {
+            return ((d.value > 0) ? 'pos_bar ' : 'neg_bar ') + d.type + '_bar multiply_bar ' + 'group' + group_indx + '_bar'
+          })
+          .attr('x', function(d) {
+              if (d.type == 'x' || d.type =='x_start') {
+                  return 0
+              } else if (d.type == 'wx') {
+                  return wtoffset+barwidth
+              } else if (d.type == 'w') {
+                  return wtoffset;
+              }
+          })
+          .attr('y', function(d) {
+            if (d.value < 0) {
+                if (!(d.type == 'wx')) {
+                    ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
+                    d.ypos = ypos
+                    return ypos
+                } else {
+                    ypos = transfer_multiply_height/2
+                    d.ypos = ypos
+                    return ypos
+                }
+            } else {
+                if (!(d.type == 'wx')) {
+                    ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
+                    d.ypos = ypos
+                    return ypos
+                } else {
+                    ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value)
+                    d.ypos = ypos
+                    return ypos
+                }                
+            }
+          })
+          .attr('width', barwidth)
+          .attr('height', function(d) {
+            return Math.abs(transfer_multiply_yscale(d.value))
+          })
+
+          add_links(x_start_data)
+    }
+    addwx_multiply(-2.2, 1.8, transfer_multiply_group_1, 1)
+    addwx_multiply(2.2, 0.8, transfer_multiply_group_2, 2)
+
+    // step function for transitioning and multiplying bars
+    var multiply = function(group_indx) {
+        // select all x_bars
+        d3.selectAll('.x_bar.multiply_bar').transition()
+          .delay(100)
+          .duration(2000)
+          .attr('x', wtoffset)
+          .attr('y', function(d) {
+            if (d.weight*d.value < 0) {
+                return transfer_multiply_height/2 +transfer_multiply_yscale(d.index) + 2*(d.index)
+            } else {
+                return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
+            }
+          })
+          .attr('height', function(d) {
+            return Math.abs(transfer_multiply_yscale(d.value))
+          })
+          .transition().duration(500).style('opacity',0)
+
+        d3.selectAll('.x_start_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
+        d3.selectAll('.w_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
+
+        d3.selectAll('.wx_bar.multiply_bar.group' + group_indx + '_bar').each(function(d, i) {
+            d3.select(this).transition()
+              .delay(2100 + 300*i)
+              .duration(300)
+              .style('opacity', 1)
+              .attr('y', function(d) {
+                if (d.value < 0) {
+                    return transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
+                } else {
+                    return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)             
+                }
+              })
+
+        })
+    }
+    multiply(1)
+    multiply(2)
+        //.duration(delay)
+        //.attr('d', linkLine());
+
+    // next level shit: addition
+
+</script>
+

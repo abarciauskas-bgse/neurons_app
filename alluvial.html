@@ -1,0 +1,166 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <title>Alluvial Diagram</title>
+    <script type="text/javascript" src="//d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="javascripts/skanky_data.js"></script>
+    <style type="text/css">
+body {
+    margin: 1em;
+}
+    
+.node {
+  stroke: #fff;
+  stroke-width: 2px;
+}
+
+.link {
+  fill: none;
+  stroke: #000;
+  opacity: .3;
+}
+
+.node {
+    stroke: none;
+}
+
+    </style>
+  </head>
+  <body>
+    <script type="text/javascript">
+
+    var data = skanky_data(2, 4);
+    /* Process Data */
+        
+    // make a node lookup map
+    var nodeMap = (function() {
+        var nm = {};
+        data.times.forEach(function(nodes) {
+            nodes.forEach(function(n) {
+                nm[n.id] = n;
+                // add links and assure node value
+                n.links = [];
+                n.incoming = [];
+                n.nodeValue = n.nodeValue || 0;
+            })
+        });
+        return nm;
+    })();
+
+    // attach links to nodes
+    data.links.forEach(function(link) {
+        nodeMap[link.source].links.push(link);
+        nodeMap[link.target].incoming.push(link);
+    });
+
+    data = data.times;
+
+    // calculate maxes
+    var maxn = 1,
+        maxv = 2;
+
+    /* Make Vis */
+        
+    // settings and scales
+    var w = 300,
+        h = 300,
+        gapratio = .7,
+        delay = 1500,
+        padding = 15,
+        x = d3.scale.ordinal()
+            .domain(d3.range(data.length))
+            .rangeBands([0, w + (w/(data.length-1))], gapratio),
+        y = d3.scale.linear()
+            .domain([0, maxv])
+            .range([0, h - padding * maxn]),
+        line = d3.svg.line()
+            .interpolate('basis');
+            
+    // root
+    var vis = d3.select("body")
+      .append("svg:svg")
+        .attr("width", w*2)
+        .attr("height", h*2);
+        
+    var offset = 2
+    var linkLine = function(start) {
+        return function(l) {
+            var source = nodeMap[l.source],
+                target = nodeMap[l.target],
+                gapWidth = x(0),
+                bandWidth = x.rangeBand() + gapWidth,
+                startx = x.rangeBand() - bandWidth,
+                sourcey = y(0) + 
+                    y(0) +
+                    y(l.value)/2,
+                targety = y(0) + 
+                    y(offset) + // here we transition down
+                    y(l.value)/2,
+                points = start ? 
+                    [
+                        [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ] 
+                    ] :
+                    [
+                        [ startx, sourcey ],
+                        [ startx + gapWidth/2, sourcey ],
+                        [ startx + gapWidth/2, targety ],
+                        [ 0, targety ]
+                    ];                    
+            return line(points);
+        }
+    }
+
+    var t = 0;
+    function update(first) {
+        // update data
+        var currentData = data.slice(0, ++t);
+        // time slots
+        var times = vis.selectAll('g.time')
+            .data(currentData)
+          .enter().append('svg:g')
+            .attr('class', 'time')
+            .attr("transform", function(d, i) { return "translate(" + (x(i) - x(0)) + ",0)" });
+            
+        // node bars
+        var nodes = times.selectAll('g.node')
+            .data(function(d) { return d })
+          .enter().append('svg:g')
+            .attr('class', 'node');
+        setTimeout(function() {
+            nodes.append('svg:rect')
+                .attr('fill', 'steelblue')
+                .attr('y', function(n, i) {
+                    if (!first) {
+                        return y(offset);
+                    } else {
+                        return y(0) + i * padding;
+                    }
+                })
+                .attr('width', x.rangeBand())
+                .attr('height', function(n) { return y(n.nodeValue) })
+              .append('svg:title')
+                .text(function(n) { return n.nodeName });
+        }, (first ? 0 : delay));
+            
+        // links
+        var links = nodes.selectAll('path.link')
+            .data(function(n) { return n.incoming || [] })
+          .enter().append('svg:path')
+            .attr('class', 'link')
+            .style('stroke-width', function(l) { console.log(y(l.value)); return y(l.value) })
+            .attr('d', linkLine(true))
+          .transition()
+            .duration(delay)
+            .attr('d', linkLine());
+            
+    }
+
+    update(true);
+    update();
+    //updateNext();
+    
+    </script>
+  </body>
+</html>
