@@ -32,7 +32,7 @@ svg {
 .link {
   fill: none;
   stroke: #000;
-  opacity: .3;
+  opacity: .1;
 }
 
 </style>
@@ -97,7 +97,8 @@ svg {
 
     var create_interval_data = function(x, type, weight) {
         // create unit and modulo of data
-        var x_data = d3.range(1, Math.abs(Math.round(x))).map(function() {
+        // FIXME: not sure why this conditional is necessary
+        var x_data = d3.range((type == 'wx' || type == 'w') ? 1 : 0, Math.abs(Math.round(x))).map(function() {
             return (x < 0) ? -1 : 1
         })
         x_data.push(x%1)
@@ -106,40 +107,63 @@ svg {
         })
         return x_data   
     }
-    line = d3.svg.line()
-        //.interpolate('basis');
+
     var offset = 2
-    var bandWidth = 140   
-    var linkLine = function(start) {
-        return function(l) {
-            console.log(l)
-            var bandWidth = wtoffset,
-                startx = 0,
-                sourcey = 0//Math.abs(transfer_multiply_yscale(l.value)) //+ transfer_multiply_height/2,
-                targety = 0//Math.abs(transfer_multiply_yscale(l.value)) //+ transfer_multiply_height/2,
-                points = start ? 
-                    [
-                        [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ], [ startx, sourcey ] 
-                    ] :
-                    [
-                        [ 0, transfer_multiply_height-l.ypos ],
-                        [ wtoffset, transfer_multiply_height-l.ypos ],
-                        [ wtoffset, transfer_multiply_height-l.ypos ],
-                        [ 0, transfer_multiply_height-l.ypos ]
-                    ];       
-            return line(points);
+    var bandWidth = 140
+    var unit_bar_height = transfer_multiply_yscale(1)
+           
+    var yposition = function(d) {
+        if (d.value < 0) {
+            if (!(d.type == 'wx')) {
+                ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
+                return ypos
+            } else {
+                ypos = transfer_multiply_height/2
+                return ypos
+            }
+        } else {
+            if (!(d.type == 'wx')) {
+                ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
+                return ypos
+            } else {
+                ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value)
+                return ypos
+            }                
+        }     
+    }
+
+    var barheight = function(d) {
+      return Math.abs(transfer_multiply_yscale(d.value))
+    }
+
+    var add_links = function(node_data, group, update) {
+        var lineFunction = d3.svg.line()
+                             .x(function(d) { return d.x; })
+                             .y(function(d) { return d.y; })
+                             .interpolate("basis");
+
+        var lineData = function(node, update) {
+          var y_pos = yposition(node) + barheight(node)/2
+          return [ 
+            { "x": barwidth, "y": y_pos},
+            { "x": update ? wtoffset+barwidth : 0,  "y": y_pos}]          
         }
-    }        
-    var add_links = function(node_data) {
-        var links = transfer_multiply_group_1.selectAll('path.link')
-            .data(function(n, i) { return [node_data[i]] })
-          .enter().append('svg:path')
+
+        if (!update) {
+          group.selectAll('path.link').data(node_data)
+            .enter().append("path")
+            .attr("d", function(d) { return lineFunction(lineData(d)) })
             .attr('class', 'link')
-            .style('stroke-width', function(d) { return Math.abs(transfer_multiply_yscale(d.original))})
-            .attr('d', linkLine(true))
-            .transition().duration(1000)
-              .attr('d', linkLine())
-    }    
+            .attr("stroke", "white")
+            .attr("stroke-width", function(d) { return barheight(d) })
+            .attr("fill", "black");                    
+
+        } else {
+            group.selectAll('.link').transition().delay(100).duration(2000)
+               .attr('d', function(d) { return lineFunction(lineData(d, true)) })
+        }
+    }
+
     // function to add x and w to transfer multiply group plot
     var addwx_multiply = function(x, w, group, group_indx) {
         // create unit and modulo of data
@@ -149,6 +173,9 @@ svg {
         wx_data = create_interval_data(x*w, 'wx', w)
 
         x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data)
+        add_links(x_start_data, group)
+        add_links(x_start_data, group, true)
+
         var bars = group.selectAll('multiply_bar')
           .data(x_data)
           .enter().append('svg:rect')
@@ -164,37 +191,13 @@ svg {
                   return wtoffset;
               }
           })
-          .attr('y', function(d) {
-            if (d.value < 0) {
-                if (!(d.type == 'wx')) {
-                    ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
-                    d.ypos = ypos
-                    return ypos
-                } else {
-                    ypos = transfer_multiply_height/2
-                    d.ypos = ypos
-                    return ypos
-                }
-            } else {
-                if (!(d.type == 'wx')) {
-                    ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
-                    d.ypos = ypos
-                    return ypos
-                } else {
-                    ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value)
-                    d.ypos = ypos
-                    return ypos
-                }                
-            }
-          })
+          .attr('y', function(d) { return yposition(d) })
           .attr('width', barwidth)
           .attr('height', function(d) {
             return Math.abs(transfer_multiply_yscale(d.value))
           })
-
-          add_links(x_start_data)
     }
-    addwx_multiply(-2.2, 1.8, transfer_multiply_group_1, 1)
+    addwx_multiply(2.2, -1.8, transfer_multiply_group_1, 1)
     addwx_multiply(2.2, 0.8, transfer_multiply_group_2, 2)
 
     // step function for transitioning and multiplying bars
@@ -236,8 +239,7 @@ svg {
     }
     multiply(1)
     multiply(2)
-        //.duration(delay)
-        //.attr('d', linkLine());
+
 
     // next level shit: addition
 
