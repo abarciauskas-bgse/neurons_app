@@ -52,8 +52,9 @@ svg {
         .attr("height", total_height)
       .append("g")
 
-    // TRANSFER FUNCTION: Multiply plots
+    // TRANSFER FUNCTION
     var transfer_multiply_height = height2
+    var transfer_addition_height = transfer_multiply_height*2
 
     // scales for transfer function
     var transfer_multiply_xscale = d3.scale.linear()
@@ -61,6 +62,14 @@ svg {
     var transfer_multiply_yscale = d3.scale.linear()
         .domain([-6,0,6])
         .range([-transfer_multiply_height/2, 0, transfer_multiply_height/2]);
+
+    // scales for transfer function
+    var transfer_addition_xscale = d3.scale.linear()
+        .range([0, transfer_addition_height]);
+    var transfer_addition_yscale = d3.scale.linear()
+        .domain([-6,0,6])
+        .range([-transfer_addition_height/2, 0, transfer_addition_height/2]);
+
 
     // wtoffset for weights
     var wtoffset = transfer_multiply_height/2
@@ -93,12 +102,27 @@ svg {
         .attr('y', transfer_multiply_height/2)
         .attr('fill', '#333')
 
+    // The addition square
+    var transfer_addition_group = svg.append('svg:g')
+        .attr('id', 'transfer_addition_group')
+        .attr('width', transfer_addition_height)
+        .attr('height', transfer_addition_height)
+        .attr('transform', "translate(" + transfer_addition_height/2 + ",0)")
+
+    transfer_addition_group.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_addition_height)
+        .attr('height', transfer_addition_height/2)
+        .attr('y', transfer_addition_height/2)
+        .attr('fill', '#333') 
+
+
     var barwidth = 10
 
     var create_interval_data = function(x, type, weight) {
         // create unit and modulo of data
         // FIXME: not sure why this conditional is necessary
-        var x_data = d3.range((type == 'wx' || type == 'w') ? 1 : 0, Math.abs(Math.round(x))).map(function() {
+        var x_data = d3.range((type == 'wx' || type == 'w' || type == 'wx_start') ? 1 : 0, Math.abs(Math.round(x))).map(function() {
             return (x < 0) ? -1 : 1
         })
         x_data.push(x%1)
@@ -114,7 +138,7 @@ svg {
            
     var yposition = function(d) {
         if (d.value < 0) {
-            if (!(d.type == 'wx')) {
+            if (!(d.type == 'wx' || d.type == 'wx_start')) {
                 ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
                 return ypos
             } else {
@@ -122,7 +146,7 @@ svg {
                 return ypos
             }
         } else {
-            if (!(d.type == 'wx')) {
+            if (!(d.type == 'wx' || d.type == 'wx_start')) {
                 ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
                 return ypos
             } else {
@@ -137,16 +161,24 @@ svg {
     }
 
     var add_links = function(node_data, group, update) {
-        var lineFunction = d3.svg.line()
-                             .x(function(d) { return d.x; })
-                             .y(function(d) { return d.y; })
-                             .interpolate("basis");
+        var lineFunction = d3.svg.line().interpolate("basis");
 
-        var lineData = function(node, update) {
-          var y_pos = yposition(node) + barheight(node)/2
+        var lineData = function(d, update) {
+          var y_pos = yposition(d) + barheight(d)/2
+          var x_update = wtoffset+barwidth
+          var y_update = y_pos
+          if (update) {
+            if (d.weight * d.value < 0) {
+                y_update = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index) + barheight(d)/2
+            } else if (d.weight < 0 && d.value < 0) {
+                y_update = transfer_multiply_height/2 - transfer_multiply_yscale(d.index) - 2*(d.index) - transfer_multiply_yscale(Math.abs(d.value)) + barheight(d)/2
+            }
+          }
           return [ 
-            { "x": barwidth, "y": y_pos},
-            { "x": update ? wtoffset+barwidth : 0,  "y": y_pos}]          
+            [ barwidth, y_pos],
+            [ update ? x_update - 3*x_update/4 : barwidth, y_pos],
+            [ update ? x_update - x_update/4 : barwidth, update ? y_update : y_pos],
+            [ update ? x_update-barwidth : barwidth,  update ? y_update : y_pos]]          
         }
 
         if (!update) {
@@ -170,9 +202,10 @@ svg {
         x_data = create_interval_data(x, 'x', w)
         x_start_data = create_interval_data(x, 'x_start', w)
         w_data = create_interval_data(w, 'w', w)
+        wx_start_data = create_interval_data(x*w, 'wx_start', w)
         wx_data = create_interval_data(x*w, 'wx', w)
 
-        x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data)
+        x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data).concat(wx_start_data)
         add_links(x_start_data, group)
         add_links(x_start_data, group, true)
 
@@ -185,7 +218,7 @@ svg {
           .attr('x', function(d) {
               if (d.type == 'x' || d.type =='x_start') {
                   return 0
-              } else if (d.type == 'wx') {
+              } else if (d.type == 'wx' || d.type == 'wx_start') {
                   return wtoffset+barwidth
               } else if (d.type == 'w') {
                   return wtoffset;
@@ -193,36 +226,16 @@ svg {
           })
           .attr('y', function(d) { return yposition(d) })
           .attr('width', barwidth)
+          .attr('opacity', function(d) { return (d.type == 'wx_start' ? 0 : 1) })
           .attr('height', function(d) {
             return Math.abs(transfer_multiply_yscale(d.value))
           })
     }
-    addwx_multiply(2.2, -1.8, transfer_multiply_group_1, 1)
-    addwx_multiply(2.2, 0.8, transfer_multiply_group_2, 2)
+    addwx_multiply(-2.2, -1.8, transfer_multiply_group_1, 1)
+    addwx_multiply(2.2, -0.8, transfer_multiply_group_2, 2)
 
-    // step function for transitioning and multiplying bars
-    var multiply = function(group_indx) {
-        // select all x_bars
-        d3.selectAll('.x_bar.multiply_bar').transition()
-          .delay(100)
-          .duration(2000)
-          .attr('x', wtoffset)
-          .attr('y', function(d) {
-            if (d.weight*d.value < 0) {
-                return transfer_multiply_height/2 +transfer_multiply_yscale(d.index) + 2*(d.index)
-            } else {
-                return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
-            }
-          })
-          .attr('height', function(d) {
-            return Math.abs(transfer_multiply_yscale(d.value))
-          })
-          .transition().duration(500).style('opacity',0)
-
-        d3.selectAll('.x_start_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
-        d3.selectAll('.w_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
-
-        d3.selectAll('.wx_bar.multiply_bar.group' + group_indx + '_bar').each(function(d, i) {
+    var stack_bars = function(class_selection) {
+        d3.selectAll(class_selection).each(function(d, i) {
             d3.select(this).transition()
               .delay(2100 + 300*i)
               .duration(300)
@@ -235,13 +248,65 @@ svg {
                 }
               })
 
-        })
+        })        
+    }
+    // step function for transitioning and multiplying bars
+    var multiply = function(group_indx) {
+        // select all x_bars, move and disappear them
+        d3.selectAll('.x_bar.multiply_bar').transition()
+          .delay(100)
+          .duration(2000)
+          .attr('x', wtoffset)
+          .attr('y', function(d) {
+            if (d.weight*d.value < 0) {
+                return transfer_multiply_height/2 +transfer_multiply_yscale(d.index) + 2*(d.index)
+            } else if (d.weight < 0 && d.value < 0) {
+                return transfer_multiply_height/2 - transfer_multiply_yscale(d.index) - 2*(d.index) - transfer_multiply_yscale(Math.abs(d.value))
+            } else {
+                return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
+            }
+          })
+          .attr('height', function(d) {
+            return Math.abs(transfer_multiply_yscale(d.value))
+          })
+          .transition().duration(500).style('opacity',0.2)
+
+        // FIXME: would like this to be a transition but d3 doesn't like to transition classes
+        d3.selectAll('.x_bar.multiply_bar')
+          .classed("neg_bar", function(d) { return d.value*d.weight < 0 ? true : false})
+          .classed("pos_bar", function(d) { return d.value*d.weight > 0 ? true : false})
+
+        // fade x_start and w
+        d3.selectAll('.x_start_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
+        d3.selectAll('.w_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
+
+        // stack wx bars
+        var wx_selection = '.wx_bar.multiply_bar.group' + group_indx + '_bar'
+        var wx_start_selection = ' .wx_start_bar.multiply_bar.group' + group_indx + '_bar'
+        stack_bars(wx_selection)
+        stack_bars(wx_start_selection)
     }
     multiply(1)
     multiply(2)
 
-
-    // next level shit: addition
+    var yposition_addition = function(d) {
+        if (d.value < 0) {
+            ypos = transfer_multiply_yscale(d.index) + 2*(d.index)
+            return ypos
+        } else {
+            ypos = transfer_addition_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(d.value) - 2*(d.index)
+            return ypos              
+        }     
+    }
+    // function to transition wx bars to the transfer addition space
+    var add = function(group_indx) {
+        d3.selectAll('.wx_start_bar').transition().delay(4000).duration(1000).style('opacity', 0.2)
+        d3.selectAll('.wx_bar.multiply_bar.group' + group_indx + '_bar').transition().delay(4000).duration(2000)
+          .attr('x', transfer_multiply_height)
+          .attr('y', function(d) { return yposition_addition(d) })
+    }
+    add(1)
+    add(2)
 
 </script>
 
