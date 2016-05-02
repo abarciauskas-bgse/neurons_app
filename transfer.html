@@ -38,6 +38,8 @@ svg {
 </style>
 <body>
 <script src="//d3js.org/d3.v3.min.js"></script>
+<script src="javascripts/rbinom.js"></script>
+<script src="javascripts/randoms.js"></script>
 <script>
 
     // layout
@@ -122,7 +124,7 @@ svg {
     var create_interval_data = function(x, type, weight) {
         // create unit and modulo of data
         // FIXME: not sure why this conditional is necessary
-        var x_data = d3.range((type == 'wx' || type == 'w' || type == 'wx_start') ? 1 : 0, Math.abs(Math.round(x))).map(function() {
+        var x_data = d3.range(Math.floor(Math.abs(x))).map(function() {
             return (x < 0) ? -1 : 1
         })
         x_data.push(x%1)
@@ -211,6 +213,18 @@ svg {
         }
     }
 
+    var padding_shift = function(shift, d) {
+        console.log(d.original)
+        res = 0
+        if (Math.abs(shift) > 1) {
+            res = shift < 0 ? 2*Math.abs((d.origional > 0 ? Math.floor(shift) : Math.ceil(shift))) : (d.origional > 0 ? -2*Math.floor(shift) : -2*Math.ceil(shift))
+        } else {
+            res = shift < 0 ? (d.original > 1 ? 0 : 2) : -2
+        }
+        //console.log(res)
+        return res
+    }
+
     var draw_addition_links = function(node_data, group, group_indx, update, shift) {
         var lineFunction = d3.svg.line().interpolate("basis");
 
@@ -227,8 +241,7 @@ svg {
           if (update == 'first') {
             y_update = yposition_addition(d, group_indx) + barheight(d)/2
           } else if (update == 'second') {
-            padding_shift = (shift < 0) ? Math.ceil(Math.abs(shift)) : Math.ceil(shift)
-            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled - 2*Math.ceil(shift) + padding_shift
+            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled + padding_shift(shift, d)
           }
           update_pos = (update != undefined) ? true : false
           return [
@@ -265,16 +278,26 @@ svg {
           })
           .attr('x', function(d) {
               if (d.type == 'x' || d.type =='x_start') {
-                  return 0
+                  return 0;
               } else if (d.type == 'wx' || d.type == 'wx_start') {
-                  return wtoffset+barwidth
+                  return wtoffset+barwidth;
               } else if (d.type == 'w') {
                   return wtoffset;
+              } else if (d.type == 'wxsum') {
+                  return barwidth;
               }
           })
-          .attr('y', function(d) { return yposition(d) })
+          .attr('y', function(d) {
+              if (!(d.type == 'wxsum')) {
+                return yposition(d)
+              } else {
+                return yposition_addition(d, 1)
+              }
+           })
           .attr('width', barwidth)
-          .attr('opacity', function(d) { return (d.type == 'wx_start' ? 0 : 1) })
+          .attr('opacity', function(d) {
+              return ((d.type == 'wx_start' || d.type == 'wxsum') ? 0 : 1)
+          })
           .attr('height', function(d) {
             return Math.abs(transfer_multiply_yscale(d.value))
           })
@@ -347,33 +370,37 @@ svg {
         var shift_scaled = transfer_multiply_yscale(shift)
         d3.selectAll('.wx_bar.group1_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
             .attr('y', function(d) {
-                padding_shift = (shift < 0) ? 2*Math.ceil(Math.abs(shift)) : -2*Math.ceil(shift)
-                return yposition_addition(d, 1) - shift_scaled + padding_shift
+                return yposition_addition(d, 1) - shift_scaled + padding_shift(shift, d)
             })
         if (shift_sign == -1) {
-            d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
-                .style('opacity', 0)
-                .attr('y', function(d) {
-                    padding_shift = (shift < 0) ? 2*Math.ceil(Math.abs(shift)) : -2*Math.ceil(shift)
-                    return yposition_addition(d, 1) + shift_scaled - transfer_multiply_height - padding_shift
-                })
+            // d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
+            //     .attr('y', function(d) {
+            //         padding_shift = (shift < 0) ? 2*Math.ceil(Math.abs(shift)) : -2*Math.ceil(shift)
+            //         return yposition_addition(d, 1) + shift_scaled - transfer_multiply_height + padding_shift
+            //     })
         } else {
             d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
         }
-        d3.selectAll('.wx_bar.group1_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
+        d3.selectAll('.wx_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
     }
 
 
-    var x = [-2.2, 2.2],
+    var x = runifo(2, 3),
         x1 = x[0],
         x2 = x[1],
-        w = [-1.8, -0.8],
+        w = runifo(2, 3),
         w1 = w[0],
         w2 = w[1],
         shift = w2*x2,
         shift_sign = Math.sign(shift*(w1*x1)),
-        final_value = shift + w1*x1
+        final_transfer_value = w1*x1 + shift,
+        final_output_value = 1/(1+Math.exp(-final_transfer_value))
 
+    console.log(x)
+    console.log(w)
+    console.log(shift)
+    //console.log(shift_sign)
+    //console.log(final_transfer_value)
     // create unit and modulo of data
     x1_data = create_interval_data(x1, 'x', w1)
     x2_data = create_interval_data(x2, 'x', w2)
@@ -387,11 +414,14 @@ svg {
     wx1_data = create_interval_data(x1*w1, 'wx', w1)
     wx2_data = create_interval_data(x2*w2, 'wx', w1)
 
+    final_data = create_interval_data(final_transfer_value, 'wxsum')
+
     data1 = x1_data.concat(w1_data).concat(wx1_data).concat(x1_start_data).concat(wx1_start_data)
     data2 = x2_data.concat(w2_data).concat(wx2_data).concat(x2_start_data).concat(wx2_start_data)
-
+    
     addwx_multiply(data1, transfer_multiply_group_1, 1)
     addwx_multiply(data2, transfer_multiply_group_2, 2)
+    addwx_multiply(final_data, transfer_addition_group)
 
     draw_multiply_links(x1_start_data, transfer_group_1)
     draw_multiply_links(x2_start_data, transfer_group_2)
@@ -410,6 +440,10 @@ svg {
     move_to_addition(2)
     add(shift, shift_sign)
 
+    var activate = function() {
+        d3.selectAll('.wxsum_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 1)
+    }
+    activate()
     // draw a new bar
     //move bar to threshold
 </script>

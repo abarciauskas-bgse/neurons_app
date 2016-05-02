@@ -69,7 +69,7 @@ var simulate_training_data = function(wts, eta, n, scale) {
 }
 
 // example:
-var wts = runifo(2, 3)
-data = simulate_training_data(wts, 0.85, 100, 3)
+// var wts = runifo(2, 3)
+// data = simulate_training_data(wts, 0.85, 100, 3)
 // TODO: add tests
 
