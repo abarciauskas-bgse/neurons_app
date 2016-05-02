@@ -227,7 +227,8 @@ svg {
           if (update == 'first') {
             y_update = yposition_addition(d, group_indx) + barheight(d)/2
           } else if (update == 'second') {
-            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled - 2*Math.ceil(shift)
+            padding_shift = (shift < 0) ? Math.ceil(Math.abs(shift)) : Math.ceil(shift)
+            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled - 2*Math.ceil(shift) + padding_shift
           }
           update_pos = (update != undefined) ? true : false
           return [
@@ -341,7 +342,7 @@ svg {
           .attr('y', function(d) { return yposition_addition(d, group_indx) })
     }
 
-    var add = function(shift) {
+    var add = function(shift, shift_sign) {
         // select all the bars in the first group and shift them up or down depending on the value of the second group
         var shift_scaled = transfer_multiply_yscale(shift)
         d3.selectAll('.wx_bar.group1_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
@@ -349,17 +350,30 @@ svg {
                 padding_shift = (shift < 0) ? 2*Math.ceil(Math.abs(shift)) : -2*Math.ceil(shift)
                 return yposition_addition(d, 1) - shift_scaled + padding_shift
             })
-        d3.selectAll('.wx_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
+        if (shift_sign == -1) {
+            d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
+                .style('opacity', 0)
+                .attr('y', function(d) {
+                    padding_shift = (shift < 0) ? 2*Math.ceil(Math.abs(shift)) : -2*Math.ceil(shift)
+                    return yposition_addition(d, 1) + shift_scaled - transfer_multiply_height - padding_shift
+                })
+        } else {
+            d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
+        }
+        d3.selectAll('.wx_bar.group1_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
     }
 
 
-    var x = [2.2, 2.2],
+    var x = [-2.2, 2.2],
         x1 = x[0],
         x2 = x[1],
-        w = [-1.8, 0.8],
+        w = [-1.8, -0.8],
         w1 = w[0],
         w2 = w[1],
-        shift = w[1]*x[1]
+        shift = w2*x2,
+        shift_sign = Math.sign(shift*(w1*x1)),
+        final_value = shift + w1*x1
+
     // create unit and modulo of data
     x1_data = create_interval_data(x1, 'x', w1)
     x2_data = create_interval_data(x2, 'x', w2)
@@ -394,7 +408,7 @@ svg {
     multiply(2)
     move_to_addition(1)
     move_to_addition(2)
-    add(shift)
+    add(shift, shift_sign)
 
     // draw a new bar
     //move bar to threshold
