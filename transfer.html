@@ -70,7 +70,6 @@ svg {
         .domain([-6,0,6])
         .range([-transfer_addition_height/2, 0, transfer_addition_height/2]);
 
-
     // wtoffset for weights
     var wtoffset = transfer_multiply_height/2
     var barwidth = 10
@@ -167,7 +166,10 @@ svg {
       return Math.abs(transfer_multiply_yscale(d.value))
     }
 
-    var add_links = function(node_data, group, update) {
+    var total_step_time = 5000
+    var sub_step_time = total_step_time/6
+
+    var draw_multiply_links = function(node_data, group, update) {
         var lineFunction = d3.svg.line().interpolate("basis");
 
         var lineData = function(d, update) {
@@ -198,12 +200,12 @@ svg {
             .attr("fill", "black");                    
 
         } else {
-            group.selectAll('.link').transition().delay(100).duration(2000)
+            group.selectAll('.link').transition().duration(sub_step_time)
                .attr('d', function(d) { return lineFunction(lineData(d, true)) })
         }
     }
 
-    var add_addition_links = function(node_data, group, update) {
+    var draw_addition_links = function(node_data, group, update) {
         var lineFunction = d3.svg.line().interpolate("basis");
 
         var lineData = function(d, update) {
@@ -235,7 +237,7 @@ svg {
             .attr("fill", "black");                    
 
         } else {
-            group.selectAll('.addition_link').transition().delay(4000).duration(2000)
+            group.selectAll('.addition_link').transition().delay(sub_step_time*2).duration(sub_step_time)
                .attr('d', function(d) { return lineFunction(lineData(d, true)) })
         }
     }
@@ -250,10 +252,10 @@ svg {
         wx_data = create_interval_data(x*w, 'wx', w)
 
         x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data).concat(wx_start_data)
-        add_links(x_start_data, group)
-        add_links(x_start_data, group, true)
-        add_addition_links(wx_start_data, group)
-        add_addition_links(wx_start_data, group, true)
+        draw_multiply_links(x_start_data, group)
+        draw_multiply_links(x_start_data, group, true)
+        draw_addition_links(wx_start_data, group)
+        draw_addition_links(wx_start_data, group, true)
 
         var bars = group.selectAll('multiply_bar')
           .data(x_data)
@@ -277,14 +279,14 @@ svg {
             return Math.abs(transfer_multiply_yscale(d.value))
           })
     }
-    addwx_multiply(-2.2, -1.8, transfer_multiply_group_1, 1)
-    addwx_multiply(2.2, -0.8, transfer_multiply_group_2, 2)
 
     var stack_bars = function(class_selection) {
-        d3.selectAll(class_selection).each(function(d, i) {
+        var all_bars = d3.selectAll(class_selection)
+        num_bars = all_bars[0].length
+        all_bars.each(function(d, i) {
             d3.select(this).transition()
-              .delay(2100 + 300*i)
-              .duration(300)
+              .delay(sub_step_time)
+              .duration(sub_step_time)
               .style('opacity', 1)
               .attr('y', function(d) {
                 if (d.value < 0) {
@@ -300,8 +302,7 @@ svg {
     var multiply = function(group_indx) {
         // select all x_bars, move and disappear them
         d3.selectAll('.x_bar.multiply_bar').transition()
-          .delay(100)
-          .duration(2000)
+          .duration(sub_step_time)
           .attr('x', wtoffset)
           .attr('y', function(d) {
             if (d.weight*d.value < 0) {
@@ -323,8 +324,8 @@ svg {
           .classed("pos_bar", function(d) { return d.value*d.weight > 0 ? true : false})
 
         // fade x_start and w
-        d3.selectAll('.x_start_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
-        d3.selectAll('.w_bar').transition().delay(100).duration(2000).style('opacity', 0.2)
+        d3.selectAll('.x_start_bar').transition().duration(sub_step_time).style('opacity', 0.2)
+        d3.selectAll('.w_bar').transition().duration(sub_step_time).style('opacity', 0.2)
 
         // stack wx bars
         var wx_selection = '.wx_bar.multiply_bar.group' + group_indx + '_bar'
@@ -332,16 +333,18 @@ svg {
         stack_bars(wx_selection)
         stack_bars(wx_start_selection)
     }
-    multiply(1)
-    multiply(2)
 
     // function to transition wx bars to the transfer addition space
     var add = function(group_indx) {
-        d3.selectAll('.wx_start_bar').transition().delay(4000).duration(1000).style('opacity', 0.2)
-        d3.selectAll('.wx_bar.multiply_bar.group' + group_indx + '_bar').transition().delay(4000).duration(2000)
+        d3.selectAll('.wx_start_bar').transition().delay(sub_step_time*2).duration(sub_step_time).style('opacity', 0.2)
+        d3.selectAll('.wx_bar.multiply_bar.group' + group_indx + '_bar').transition().delay(sub_step_time*2).duration(sub_step_time)
           .attr('x', transfer_multiply_height)
           .attr('y', function(d) { return yposition_addition(d) })
     }
+    addwx_multiply(-2.2, -1.8, transfer_multiply_group_1, 1)
+    addwx_multiply(2.2, -0.8, transfer_multiply_group_2, 2)
+    multiply(1)
+    multiply(2)
     add(1)
     add(2)
 </script>
