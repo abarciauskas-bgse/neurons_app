@@ -29,7 +29,7 @@ svg {
     opacity: 0;
 }
 
-.link {
+.link, .addition_link {
   fill: none;
   stroke: #000;
   opacity: .1;
@@ -73,6 +73,10 @@ svg {
 
     // wtoffset for weights
     var wtoffset = transfer_multiply_height/2
+    var barwidth = 10
+    var offset = 2
+    var bandWidth = 140
+    var unit_bar_height = transfer_multiply_yscale(1)
 
     // group for first variable
     var transfer_multiply_group_1 = svg.append('svg:g')
@@ -116,9 +120,6 @@ svg {
         .attr('y', transfer_addition_height/2)
         .attr('fill', '#333') 
 
-
-    var barwidth = 10
-
     var create_interval_data = function(x, type, weight) {
         // create unit and modulo of data
         // FIXME: not sure why this conditional is necessary
@@ -131,10 +132,6 @@ svg {
         })
         return x_data   
     }
-
-    var offset = 2
-    var bandWidth = 140
-    var unit_bar_height = transfer_multiply_yscale(1)
            
     var yposition = function(d) {
         if (d.value < 0) {
@@ -152,8 +149,18 @@ svg {
             } else {
                 ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value)
                 return ypos
-            }                
-        }     
+            } 
+        }
+    }
+
+    var yposition_addition = function(d) {
+        if (d.value < 0) {
+            ypos = transfer_multiply_yscale(d.index) + 2*(d.index)
+            return ypos
+        } else {
+            ypos = transfer_addition_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(d.value) - 2*(d.index)
+            return ypos
+        }
     }
 
     var barheight = function(d) {
@@ -178,7 +185,7 @@ svg {
             [ barwidth, y_pos],
             [ update ? x_update - 3*x_update/4 : barwidth, y_pos],
             [ update ? x_update - x_update/4 : barwidth, update ? y_update : y_pos],
-            [ update ? x_update-barwidth : barwidth,  update ? y_update : y_pos]]          
+            [ update ? x_update-barwidth : barwidth,  update ? y_update : y_pos]]
         }
 
         if (!update) {
@@ -196,6 +203,43 @@ svg {
         }
     }
 
+    var add_addition_links = function(node_data, group, update) {
+        var lineFunction = d3.svg.line().interpolate("basis");
+
+        var lineData = function(d, update) {
+          var x_start = wtoffset+barwidth*2
+          if (d.value < 0) {
+              y_pos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index) + barheight(d)/2
+          } else {
+              y_pos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index) + barheight(d)/2
+          }
+          var x_update = transfer_multiply_height/2-barwidth*2
+          var y_update = y_pos
+          if (update) {
+            y_update = yposition_addition(d)+barheight(d)/2
+          }
+          return [
+            [ x_start, y_pos],
+            [ update ? x_start + x_update/4 : x_start, y_pos],
+            [ update ? x_start + 3*x_update/4 : x_start, update ? y_update : y_pos],
+            [ update ? x_start + x_update : x_start,  update ? y_update : y_pos]]
+        }
+
+        if (!update) {
+          group.selectAll('path.addition_link').data(node_data)
+            .enter().append("path")
+            .attr("d", function(d) { return lineFunction(lineData(d)) })
+            .attr('class', 'addition_link')
+            .attr("stroke", "white")
+            .attr("stroke-width", function(d) { return barheight(d) })
+            .attr("fill", "black");                    
+
+        } else {
+            group.selectAll('.addition_link').transition().delay(4000).duration(2000)
+               .attr('d', function(d) { return lineFunction(lineData(d, true)) })
+        }
+    }
+
     // function to add x and w to transfer multiply group plot
     var addwx_multiply = function(x, w, group, group_indx) {
         // create unit and modulo of data
@@ -208,6 +252,8 @@ svg {
         x_data = x_data.concat(w_data).concat(wx_data).concat(x_start_data).concat(wx_start_data)
         add_links(x_start_data, group)
         add_links(x_start_data, group, true)
+        add_addition_links(wx_start_data, group)
+        add_addition_links(wx_start_data, group, true)
 
         var bars = group.selectAll('multiply_bar')
           .data(x_data)
@@ -289,15 +335,6 @@ svg {
     multiply(1)
     multiply(2)
 
-    var yposition_addition = function(d) {
-        if (d.value < 0) {
-            ypos = transfer_multiply_yscale(d.index) + 2*(d.index)
-            return ypos
-        } else {
-            ypos = transfer_addition_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(d.value) - 2*(d.index)
-            return ypos              
-        }     
-    }
     // function to transition wx bars to the transfer addition space
     var add = function(group_indx) {
         d3.selectAll('.wx_start_bar').transition().delay(4000).duration(1000).style('opacity', 0.2)
@@ -307,6 +344,5 @@ svg {
     }
     add(1)
     add(2)
-
 </script>
 
