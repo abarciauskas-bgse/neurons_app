@@ -175,7 +175,7 @@ svg {
       return Math.abs(transfer_multiply_yscale(d.value))
     }
 
-    var total_step_time = 5000
+    var total_step_time = 600
     var sub_step_time = total_step_time/6
 
     var draw_multiply_links = function(node_data, group, update) {
@@ -373,71 +373,8 @@ svg {
         d3.selectAll('.wx_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 0.2)
     }
 
-
-    var x = runifo(2, 3),
-        x1 = x[0],
-        x2 = x[1],
-        w = runifo(2, 3),
-        w1 = w[0],
-        w2 = w[1],
-        shift = w2*x2,
-        shift_sign = Math.sign(shift*(w1*x1)),
-        final_transfer_value = w1*x1 + shift,
-        final_output_value = 1/(1+Math.exp(-final_transfer_value))
-
-    // console.log(x)
-    // console.log(w)
-    // console.log(shift)
-    //console.log(shift_sign)
-    //console.log(final_transfer_value)
-    // create unit and modulo of data
-    x1_data = create_interval_data(x1, 'x', w1)
-    x2_data = create_interval_data(x2, 'x', w2)
-    x1_start_data = create_interval_data(x1, 'x_start', w1)
-    x2_start_data = create_interval_data(x2, 'x_start', w2)
-
-    w1_data = create_interval_data(w1, 'w', w1)
-    w2_data = create_interval_data(w2, 'w', w2)
-    wx1_start_data = create_interval_data(x1*w1, 'wx_start', w1)
-    wx2_start_data = create_interval_data(x2*w2, 'wx_start', w2)
-    wx1_data = create_interval_data(x1*w1, 'wx', w1)
-    wx2_data = create_interval_data(x2*w2, 'wx', w1)
-
-    final_data_start = create_interval_data(final_transfer_value, 'wxsum_start')
-    final_data = create_interval_data(final_transfer_value, 'wxsum')
-
-    data1 = x1_data.concat(w1_data).concat(wx1_data).concat(x1_start_data).concat(wx1_start_data)
-    data2 = x2_data.concat(w2_data).concat(wx2_data).concat(x2_start_data).concat(wx2_start_data)
-    
-    addwx_multiply(data1, transfer_multiply_group_1, 1)
-    addwx_multiply(data2, transfer_multiply_group_2, 2)
-    addwx_multiply(final_data_start, transfer_addition_group)
-    addwx_multiply(final_data, transfer_addition_group)
-
-    draw_multiply_links(x1_start_data, transfer_group_1)
-    draw_multiply_links(x2_start_data, transfer_group_2)
-    draw_multiply_links(x1_start_data, transfer_group_1, true)
-    draw_multiply_links(x2_start_data, transfer_group_2, true)
-
-    draw_addition_links(wx1_start_data, transfer_group_1, 1)
-    draw_addition_links(wx2_start_data, transfer_group_2, 2)
-    draw_addition_links(wx1_start_data, transfer_group_1, 1, 'first')
-    draw_addition_links(wx2_start_data, transfer_group_2, 2, 'first')
-    draw_addition_links(wx1_start_data, transfer_group_1, 1, 'second', w2*x2)
-
-    multiply(1)
-    multiply(2)
-    move_to_addition(1)
-    move_to_addition(2)
-    add(shift, shift_sign)
-
-    var activate = function() {
-        d3.selectAll('.wxsum_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 1)
-    }
-    activate()
-
     // draw the thrshold transition polygon
-    var threshold = function() {
+    var threshold = function(final_transfer_value, final_output_value) {
         init_poly = [ {"x": 2*barwidth, "y": transfer_multiply_height},
                       {"x": 2*barwidth, "y": transfer_multiply_height - transfer_multiply_yscale(final_transfer_value)},
                       {"x": 2*barwidth, "y": transfer_multiply_height - transfer_multiply_yscale(final_transfer_value)},
@@ -451,6 +388,7 @@ svg {
         transfer_addition_group.selectAll("polygon")
               .data([init_poly])
           .enter().append("polygon")
+              .attr('id', 'threshold-poly')
               .attr("points",function(d) { 
                   return d.map(function(d) {
                       return [d.x,d.y].join(",");
@@ -480,6 +418,72 @@ svg {
             .classed('neg_bar', false)
             .classed('pos_bar', true)
     }
-    threshold()
+
+    var activate = function() {
+        d3.selectAll('.wxsum_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 1)
+    }
+
+    var step = function() {
+        d3.selectAll('.multiply_bar').remove()
+        d3.selectAll('.link').remove()
+        d3.selectAll('.addition_link').remove()
+        d3.selectAll('#threshold-poly').remove()
+
+        var x = runifo(2, 3),
+            x1 = x[0],
+            x2 = x[1],
+            w = runifo(2, 3),
+            w1 = w[0],
+            w2 = w[1],
+            shift = w2*x2,
+            shift_sign = Math.sign(shift*(w1*x1)),
+            final_transfer_value = w1*x1 + shift,
+            final_output_value = 1/(1+Math.exp(-final_transfer_value))
+        x1_data = create_interval_data(x1, 'x', w1)
+        x2_data = create_interval_data(x2, 'x', w2)
+        x1_start_data = create_interval_data(x1, 'x_start', w1)
+        x2_start_data = create_interval_data(x2, 'x_start', w2)
+
+        w1_data = create_interval_data(w1, 'w', w1)
+        w2_data = create_interval_data(w2, 'w', w2)
+        wx1_start_data = create_interval_data(x1*w1, 'wx_start', w1)
+        wx2_start_data = create_interval_data(x2*w2, 'wx_start', w2)
+        wx1_data = create_interval_data(x1*w1, 'wx', w1)
+        wx2_data = create_interval_data(x2*w2, 'wx', w1)
+
+        final_data_start = create_interval_data(final_transfer_value, 'wxsum_start')
+        final_data = create_interval_data(final_transfer_value, 'wxsum')
+
+        data1 = x1_data.concat(w1_data).concat(wx1_data).concat(x1_start_data).concat(wx1_start_data)
+        data2 = x2_data.concat(w2_data).concat(wx2_data).concat(x2_start_data).concat(wx2_start_data)
+        
+        addwx_multiply(data1, transfer_multiply_group_1, 1)
+        addwx_multiply(data2, transfer_multiply_group_2, 2)
+        addwx_multiply(final_data_start, transfer_addition_group)
+        addwx_multiply(final_data, transfer_addition_group)
+
+        draw_multiply_links(x1_start_data, transfer_group_1)
+        draw_multiply_links(x2_start_data, transfer_group_2)
+        draw_multiply_links(x1_start_data, transfer_group_1, true)
+        draw_multiply_links(x2_start_data, transfer_group_2, true)
+
+        draw_addition_links(wx1_start_data, transfer_group_1, 1)
+        draw_addition_links(wx2_start_data, transfer_group_2, 2)
+        draw_addition_links(wx1_start_data, transfer_group_1, 1, 'first')
+        draw_addition_links(wx2_start_data, transfer_group_2, 2, 'first')
+        draw_addition_links(wx1_start_data, transfer_group_1, 1, 'second', w2*x2)
+
+        multiply(1)
+        multiply(2)
+        move_to_addition(1)
+        move_to_addition(2)
+        add(shift, shift_sign)
+        activate()
+        threshold(final_transfer_value, final_output_value)
+    }
+
+    for (i = 0; i < 100; i++) {
+        setTimeout(function() { step(); }, total_step_time*i);
+    }
 </script>
 
