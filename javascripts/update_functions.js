@@ -1,7 +1,5 @@
-var update_shaded = function(weights, delay_offset) {
-    // FIXME: is there someway to just update the area (e.g. need transition)
-    //d3.selectAll('#second_plot_group .area').remove();
-    shade_plot([0,height2], [0,height2], weights, scale, second_plot_group, true)
+var update_shaded = function(weights, iter) {
+    shade_plot([0,height2], [0,height2], weights, scale, second_plot_group, iter == 1 ? false : true)
 }
 
 var update_loss = function(regrets, loss, delay_offset) {

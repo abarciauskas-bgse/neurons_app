@@ -121,39 +121,48 @@
             .y(function(d, i) { return loss_yscale(d) })
 
 
-    // Step 0: Simulate traning data
-    var wts = runifo(2, 3) // will be the true weights
+    // Constants
     var eta = 1
-    var n = 100
-    var scale = 3
-    var data = simulate_training_data(wts, eta, n, scale)
-    // draw plots
-    draw_plot([0,height2], [0,height2], 'data', data, first_plot_group, 'dot dot-active')
-    draw_plot([0,height2], [0,height2], 'data', data, second_plot_group, 'dot')
-    draw_plot(loss_xrange, loss_yrange, 'loss', short_term_regrets, losses_plot_group)
-    shade_plot([0,height2], [0,height2], wts, scale, second_plot_group)
-
-    // Step 1: initialization
-    var weights = runifo(2,3)
-    var points = d3.selectAll('#second_plot_group .dot')[0]
+    var n = 100 // number of training points
+    var scale = 3 // scale of data, -scale to scale
     var max_iters = 100
-    var long_term_regrets = []
-    var all_weights = []
     var step_duration = 200
-
-    // Step 2: Iterate
-    for (var iter = 0; iter < max_iters; iter ++) {
-      for (var i = 0; i < n-1; i ++) {
-          point = data[i]        
-          res = step(point, weights)
-          all_weights.push(res.weights)
-          weights = res.weights
-          long_term_regrets.push(res.loss)
-      }
-    }
-
     var timeouts = [];
     var current_iter = 0;
+
+    var reset = function(update) {
+        // Step 0: Simulate traning data
+        var wts = runifo(2, 3) // will be the true weights
+        var data = simulate_training_data(wts, eta, n, scale)
+        var short_term_regrets = new Array(loss_memory).fill(0.0)
+        losses_plot_group.selectAll('path').remove();
+        // update plots
+        draw_plot([0,height2], [0,height2], 'data', data, first_plot_group, 'dot dot-active', update ? true : false)
+        draw_plot([0,height2], [0,height2], 'data', data, second_plot_group, 'dot', update ? true : false)
+        draw_plot(loss_xrange, loss_yrange, 'loss', short_term_regrets, losses_plot_group, update ? true : false)
+
+        second_plot_group.selectAll('.area').remove();
+
+        // Step 1: initialization
+        var weights = runifo(2,3)
+        var points = d3.selectAll('#second_plot_group .dot')[0]
+        var long_term_regrets = []
+        var all_weights = []
+        
+        // Step 2: Iterate
+        for (var iter = 0; iter < max_iters; iter ++) {
+          for (var i = 0; i < n-1; i ++) {
+              point = data[i]        
+              res = step(point, weights)
+              all_weights.push(res.weights)
+              weights = res.weights
+              long_term_regrets.push(res.loss)
+          }
+        }
+
+        return {all_weights: all_weights, short_term_regrets: short_term_regrets, long_term_regrets: long_term_regrets}
+    }
+
     var play = function() {
         for (var iter = 0; iter < max_iters*n; iter++) {
             current_iter += 1
@@ -175,16 +184,30 @@
         timeouts = [];        
     });
     d3.select("#step-button").on("click", function() {
+        current_iter += 1
         step_update(current_iter, short_term_regrets, all_weights, long_term_regrets)
     })
     // do more here to clear the data and regenerate it
     d3.select('#refresh-button').on("click", function() {
+        current_iter = 0;
+        new_data = reset(true);
+        short_term_regrets = new_data.short_term_regrets;
+        long_term_regrets = new_data.long_term_regrets;
+        all_weights = new_data.all_weights;
+
         for (var i = 0; i < timeouts.length; i++) {
             clearTimeout(timeouts[i]);
         }
         //quick reset of the timer array you just cleared
         timeouts = [];        
-    });    
+    });
+
+    // first time setup
+    var initial_data = reset(false);
+    var short_term_regrets = initial_data.short_term_regrets;
+    var long_term_regrets = initial_data.long_term_regrets;
+    var all_weights = initial_data.all_weights;
+
 </script>
 </footer>
 </html>
