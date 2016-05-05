@@ -68,16 +68,53 @@ svg {
     var second_plot_group = svg.append("g")
         .attr("id", "second_plot_group")
         .attr("transform", "translate(" + (height2+50) + "," + height1 + ")")
+    var losses_plot_group = svg.append("g")
+        .attr("id", "losses_plot_group")
+        .attr("transform", "translate(" + (height2+50)*2 + "," + height1 + ")")
+
+    // FIXME: not dry with draw_plot
+    var loss_memory = 100
+    var regrets = new Array(loss_memory).fill(0.0);
+    xrange = [0,height2]
+    yrange = [0,height2]
+    // xscale
+    var x = d3.scale.linear()
+        .range([xrange[0], xrange[1]]);
+    // yscale
+    var y = d3.scale.linear()
+        .range([yrange[1], yrange[0]]);
+    x.domain([0, regrets.length]);
+    y.domain([0, 1]);
+    var line_function = d3.svg.line()
+            .x(function(d, i) { return x(i) })
+            .y(function(d, i) { return y(d) })
+            //.interpolate('linear')
+    
     // draw the first plot with the points plotted
-    draw_plot([0,height2], [0,height2], data, first_plot_group, 'dot dot-active')
-    draw_plot([0,height2], [0,height2], data, second_plot_group, 'dot')
-    shade_plot([0,height2], [0,height2], wts, scale, first_plot_group)
+    draw_plot([0,height2], [0,height2], 'data', data, first_plot_group, 'dot dot-active')
+    draw_plot([0,height2], [0,height2], 'data', data, second_plot_group, 'dot')
+    draw_plot([0,height2], [0,height2], 'loss', regrets, losses_plot_group)
+    shade_plot([0,height2], [0,height2], wts, scale, second_plot_group)
 
     var step_duration = 200
     var update_shaded = function(weights, delay_offset) {
         setTimeout(function() {
-          d3.selectAll('#second_plot_group .area').remove()
+          // FIXME: is there someway to just update the area (e.g. need transition)
+          d3.selectAll('#second_plot_group .area').remove();
+          // FIXME: Can just add it the first time and then don't have to keep removing it
+          d3.selectAll('clippath#clip').remove();
           shade_plot([0,height2], [0,height2], weights, scale, second_plot_group)
+        }, delay_offset * step_duration)
+    }
+
+    var update_loss = function(regrets, loss, delay_offset) {
+        setTimeout(function() {
+            regrets.push(loss);
+            d3.selectAll('path.regrets').attr("d", line_function(regrets))
+              .attr("transform", null)
+              .transition()
+              .attr("transform", "translate(" + x(-1) + ")");
+            regrets.shift();
         }, delay_offset * step_duration)
     }
 
@@ -91,7 +128,9 @@ svg {
           point = data[i]        
           res = step(point, weights)
           weights = res.weights
-          update_shaded(weights, i*iter)
+          loss = res.loss
+          update_shaded(weights, (i+1)*iter)
+          update_loss(regrets, loss, (i+1)*iter)
           if (iter == 0) { d3.select(points[i]).transition().delay(i * step_duration).attr('class', 'dot dot-active') }
       }
     }

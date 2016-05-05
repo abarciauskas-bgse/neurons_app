@@ -9,7 +9,8 @@ var shade_plot = function(yrange, xrange, wts, scale, group) {
     x.domain([-scale,scale]).nice();
     y.domain([-scale,scale]).nice();
 
-    // NOT SUPER HAPPY ABOUT THIS, BUT THERE IS STILL SOME BUGS IN THE AREA-CREATING CODE BELOW
+    // NOT SUPER HAPPY ABOUT THIS, BUT THERE IS SOME BUGS IN THE AREA-CREATING CODE BELOW
+    // WHICH CAUSES THE SHADED REGION TO GO CRAZY
     var height = yrange[1]-yrange[0]
     var clip = svg.append("svg:clipPath")
       .attr("id", "clip")

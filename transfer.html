@@ -65,13 +65,6 @@ svg {
         .domain([-6,0,6])
         .range([-transfer_multiply_height/2, 0, transfer_multiply_height/2]);
 
-    // scales for transfer function
-    var transfer_addition_xscale = d3.scale.linear()
-        .range([0, transfer_addition_height]);
-    var transfer_addition_yscale = d3.scale.linear()
-        .domain([-6,0,6])
-        .range([-transfer_addition_height/2, 0, transfer_addition_height/2]);
-
     // wtoffset for weights
     var wtoffset = transfer_multiply_height/2
     var barwidth = 10
@@ -91,7 +84,6 @@ svg {
         .attr('width', transfer_multiply_height)
         .attr('height', transfer_multiply_height/2)
         .attr('y', transfer_multiply_height/2)
-        .attr('fill', '#333')
 
     var transfer_multiply_group_2 = svg.append('svg:g')
         .attr('id', 'transfer_group_2')
@@ -105,7 +97,6 @@ svg {
         .attr('width', transfer_multiply_height)
         .attr('height', transfer_multiply_height/2)
         .attr('y', transfer_multiply_height/2)
-        .attr('fill', '#333')
 
     // The addition square
     var transfer_addition_group = svg.append('svg:g')
@@ -119,7 +110,16 @@ svg {
         .attr('width', transfer_addition_height)
         .attr('height', transfer_addition_height/2)
         .attr('y', transfer_addition_height/2)
-        .attr('fill', '#333') 
+
+    // the threshold
+    var threshold_width = barwidth
+    var threshold_offset = transfer_multiply_height + transfer_addition_height
+    svg.append('svg:rect')
+        .attr('id', 'threshold_bar')
+        .attr('class', 'negative_region')
+        .attr('x', threshold_offset)
+        .attr('height', transfer_multiply_height - transfer_multiply_yscale(1))
+        .attr('width', threshold_width)
 
     var create_interval_data = function(x, type, weight) {
         // create unit and modulo of data
@@ -135,39 +135,40 @@ svg {
     }
            
     var yposition = function(d) {
+        ypos = 0
         if (d.value < 0) {
             if (!(d.type == 'wx' || d.type == 'wx_start')) {
-                ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
-                return ypos
+                ypos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index)
             } else {
                 ypos = transfer_multiply_height/2
-                return ypos
             }
         } else {
             if (!(d.type == 'wx' || d.type == 'wx_start')) {
-                ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
-                return ypos
+                ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index)
             } else {
                 ypos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value)
-                return ypos
             } 
         }
+
+        if (d.original > 0) { ypos += 2 }
+        return ypos
     }
 
     var yposition_addition = function(d, group_indx) {
+        ypos = 0
         if (d.value < 0) {
-            ypos = transfer_multiply_yscale(d.index) + 2*(d.index)
+            ypos = transfer_multiply_yscale(d.index)
             if (group_indx == 1) {
                 ypos += transfer_multiply_height
             }
-            return ypos
         } else {
-            ypos = transfer_addition_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(d.value) - 2*(d.index)
+            ypos = transfer_addition_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(d.value)
             if (group_indx == 2) {
                 ypos -= transfer_multiply_height
             }
-            return ypos
         }
+        if (d.original > 0) { ypos += 2 }
+        return ypos
     }
 
     var barheight = function(d) {
@@ -186,9 +187,9 @@ svg {
           var y_update = y_pos
           if (update) {
             if (d.weight * d.value < 0) {
-                y_update = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index) + barheight(d)/2
+                y_update = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + barheight(d)/2
             } else if (d.weight < 0 && d.value < 0) {
-                y_update = transfer_multiply_height/2 - transfer_multiply_yscale(d.index) - 2*(d.index) - transfer_multiply_yscale(Math.abs(d.value)) + barheight(d)/2
+                y_update = transfer_multiply_height/2 - transfer_multiply_yscale(d.index) - transfer_multiply_yscale(Math.abs(d.value)) + barheight(d)/2
             }
           }
           return [ 
@@ -204,25 +205,13 @@ svg {
             .attr("d", function(d) { return lineFunction(lineData(d)) })
             .attr('class', 'link')
             .attr("stroke", "white")
-            .attr("stroke-width", function(d) { return barheight(d) })
+            .attr("stroke-width", function(d) { return height_with_padding(d) })
             .attr("fill", "black");                    
 
         } else {
             d3.select(group).selectAll('.link').transition().duration(sub_step_time)
                .attr('d', function(d) { return lineFunction(lineData(d, true)) })
         }
-    }
-
-    var padding_shift = function(shift, d) {
-        console.log(d.original)
-        res = 0
-        if (Math.abs(shift) > 1) {
-            res = shift < 0 ? 2*Math.abs((d.origional > 0 ? Math.floor(shift) : Math.ceil(shift))) : (d.origional > 0 ? -2*Math.floor(shift) : -2*Math.ceil(shift))
-        } else {
-            res = shift < 0 ? (d.original > 1 ? 0 : 2) : -2
-        }
-        //console.log(res)
-        return res
     }
 
     var draw_addition_links = function(node_data, group, group_indx, update, shift) {
@@ -232,16 +221,16 @@ svg {
           var shift_scaled = transfer_multiply_yscale(shift)
           var x_start = wtoffset+barwidth*2
           if (d.value < 0) {
-              y_pos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index) + barheight(d)/2
+              y_pos = transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + barheight(d)/2
           } else {
-              y_pos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index) + barheight(d)/2
+              y_pos = transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) + barheight(d)/2
           }
           var x_update = transfer_multiply_height/2-barwidth*2
           var y_update = y_pos
           if (update == 'first') {
             y_update = yposition_addition(d, group_indx) + barheight(d)/2
           } else if (update == 'second') {
-            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled + padding_shift(shift, d)
+            y_update = yposition_addition(d, group_indx) + barheight(d)/2 - shift_scaled
           }
           update_pos = (update != undefined) ? true : false
           return [
@@ -257,7 +246,7 @@ svg {
             .attr("d", function(d) { return lineFunction(lineData(d)) })
             .attr('class', 'addition_link group' + group_indx)
             .attr("stroke", "white")
-            .attr("stroke-width", function(d) { return barheight(d) })
+            .attr("stroke-width", function(d) { return height_with_padding(d) })
             .attr("fill", "black");                    
         } else if (update == 'first') {
             d3.select(group).selectAll('.addition_link').transition().delay(sub_step_time*2).duration(sub_step_time)
@@ -268,6 +257,11 @@ svg {
         }
     }
 
+    var height_with_padding = function(d) {
+        var height = Math.abs(transfer_multiply_yscale(d.value))
+        var padding = -2//(d.index == 0 ? 0 : -2)
+        return ((height + padding) > 0 ? (height + padding) : height)      
+    }
     // function to add x and w to transfer multiply group plot
     var addwx_multiply = function(data, group, group_indx) {
         var bars = group.selectAll('multiply_bar')
@@ -283,12 +277,12 @@ svg {
                   return wtoffset+barwidth;
               } else if (d.type == 'w') {
                   return wtoffset;
-              } else if (d.type == 'wxsum') {
+              } else if (d.type == 'wxsum' || d.type == 'wxsum_start') {
                   return barwidth;
               }
           })
           .attr('y', function(d) {
-              if (!(d.type == 'wxsum')) {
+              if (!(d.type == 'wxsum' || d.type == 'wxsum_start')) {
                 return yposition(d)
               } else {
                 return yposition_addition(d, 1)
@@ -296,11 +290,9 @@ svg {
            })
           .attr('width', barwidth)
           .attr('opacity', function(d) {
-              return ((d.type == 'wx_start' || d.type == 'wxsum') ? 0 : 1)
+              return ((d.type == 'wx_start' || d.type == 'wxsum' || d.type == 'wxsum_start') ? 0 : 1)
           })
-          .attr('height', function(d) {
-            return Math.abs(transfer_multiply_yscale(d.value))
-          })
+          .attr('height', function(d) { return height_with_padding(d) })
     }
 
     var stack_bars = function(class_selection) {
@@ -313,9 +305,9 @@ svg {
               .style('opacity', 1)
               .attr('y', function(d) {
                 if (d.value < 0) {
-                    return transfer_multiply_height/2 + transfer_multiply_yscale(d.index) + 2*(d.index)
+                    return transfer_multiply_height/2 + transfer_multiply_yscale(d.index)
                 } else {
-                    return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)             
+                    return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) + 2
                 }
               })
 
@@ -329,17 +321,14 @@ svg {
           .attr('x', wtoffset)
           .attr('y', function(d) {
             if (d.weight*d.value < 0) {
-                return transfer_multiply_height/2 +transfer_multiply_yscale(d.index) + 2*(d.index)
-            } else if (d.weight < 0 && d.value < 0) {
-                return transfer_multiply_height/2 - transfer_multiply_yscale(d.index) - 2*(d.index) - transfer_multiply_yscale(Math.abs(d.value))
+                return transfer_multiply_height/2 + transfer_multiply_yscale(d.index)
             } else {
-                return transfer_multiply_height/2 - transfer_multiply_yscale(d.value) - transfer_multiply_yscale(d.index) - 2*(d.index)
+                return transfer_multiply_height/2 - transfer_multiply_yscale(Math.abs(d.value)) - transfer_multiply_yscale(d.index) + 2
             }
+
           })
-          .attr('height', function(d) {
-            return Math.abs(transfer_multiply_yscale(d.value))
-          })
-          .transition().duration(500).style('opacity',0.2)
+          .attr('height', function(d) { return height_with_padding(d) })
+          .transition().duration(500).style('opacity', 0.2)
 
         // FIXME: would like this to be a transition but d3 doesn't like to transition classes
         d3.selectAll('.x_bar.multiply_bar')
@@ -370,7 +359,7 @@ svg {
         var shift_scaled = transfer_multiply_yscale(shift)
         d3.selectAll('.wx_bar.group1_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
             .attr('y', function(d) {
-                return yposition_addition(d, 1) - shift_scaled + padding_shift(shift, d)
+                return yposition_addition(d, 1) - shift_scaled
             })
         if (shift_sign == -1) {
             // d3.selectAll('.wx_bar.group2_bar').transition().delay(sub_step_time*3).duration(sub_step_time)
@@ -396,9 +385,9 @@ svg {
         final_transfer_value = w1*x1 + shift,
         final_output_value = 1/(1+Math.exp(-final_transfer_value))
 
-    console.log(x)
-    console.log(w)
-    console.log(shift)
+    // console.log(x)
+    // console.log(w)
+    // console.log(shift)
     //console.log(shift_sign)
     //console.log(final_transfer_value)
     // create unit and modulo of data
@@ -414,6 +403,7 @@ svg {
     wx1_data = create_interval_data(x1*w1, 'wx', w1)
     wx2_data = create_interval_data(x2*w2, 'wx', w1)
 
+    final_data_start = create_interval_data(final_transfer_value, 'wxsum_start')
     final_data = create_interval_data(final_transfer_value, 'wxsum')
 
     data1 = x1_data.concat(w1_data).concat(wx1_data).concat(x1_start_data).concat(wx1_start_data)
@@ -421,6 +411,7 @@ svg {
     
     addwx_multiply(data1, transfer_multiply_group_1, 1)
     addwx_multiply(data2, transfer_multiply_group_2, 2)
+    addwx_multiply(final_data_start, transfer_addition_group)
     addwx_multiply(final_data, transfer_addition_group)
 
     draw_multiply_links(x1_start_data, transfer_group_1)
@@ -444,7 +435,51 @@ svg {
         d3.selectAll('.wxsum_bar').transition().delay(sub_step_time*4).duration(sub_step_time).style('opacity', 1)
     }
     activate()
-    // draw a new bar
-    //move bar to threshold
+
+    // draw the thrshold transition polygon
+    var threshold = function() {
+        init_poly = [ {"x": 2*barwidth, "y": transfer_multiply_height},
+                      {"x": 2*barwidth, "y": transfer_multiply_height - transfer_multiply_yscale(final_transfer_value)},
+                      {"x": 2*barwidth, "y": transfer_multiply_height - transfer_multiply_yscale(final_transfer_value)},
+                      {"x": 2*barwidth, "y": transfer_multiply_height}];
+
+        update_poly = [ {"x": 2*barwidth, "y": transfer_multiply_height},
+                        {"x": 2*barwidth, "y": transfer_multiply_height - transfer_multiply_yscale(final_transfer_value)},
+                        {"x": transfer_addition_height, "y": transfer_multiply_height - transfer_multiply_yscale(final_output_value)},
+                        {"x": transfer_addition_height, "y": transfer_multiply_height}];
+
+        transfer_addition_group.selectAll("polygon")
+              .data([init_poly])
+          .enter().append("polygon")
+              .attr("points",function(d) { 
+                  return d.map(function(d) {
+                      return [d.x,d.y].join(",");
+                  }).join(" ");
+              })
+              .attr("fill","#333")
+              .attr("opacity",0.2)
+          .transition().delay(sub_step_time*5).duration(sub_step_time)
+              .attr('points', function() {
+                  return update_poly.map(function(d) { return [d.x, d.y].join(',')}).join(' ')
+              });
+
+        transfer_addition_group.selectAll('.wxsum_start_bar').transition().delay(sub_step_time*4).style('opacity',1)
+            .transition()
+            .delay(sub_step_time*5)
+            .duration(sub_step_time)
+            .style('opacity', 0.2)
+
+        //move bar to threshold and shrink to final value
+        transfer_addition_group.selectAll('.wxsum_bar').transition().delay(sub_step_time*5).duration(sub_step_time)
+            .attr('x', transfer_addition_height)
+            .attr('opacity', 1)
+            .attr('height', transfer_multiply_yscale(final_output_value))
+            .attr('y', transfer_multiply_height - transfer_multiply_yscale(final_output_value))
+
+        transfer_addition_group.selectAll('.wxsum_bar')
+            .classed('neg_bar', false)
+            .classed('pos_bar', true)
+    }
+    threshold()
 </script>
 

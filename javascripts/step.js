@@ -8,7 +8,7 @@ var step = function(data_point, init_weights) {
     // this is the ouptput of the neuron
     // if y = 1, f_neuron is the correct predicted probability
     // if y = 0, 1-f_neuron1 is the correct predicted probability
-    loss_neuron1 = (data_point.class == 1) ? (1 - f_neuron1) : f_neuron1
+    loss_neuron1 = (data_point.class == 0) ? (1 - f_neuron1) : f_neuron1
 
     dLdF = (data_point.class == 1) ? -1 : 1
     dL = loss_neuron1 * dLdF

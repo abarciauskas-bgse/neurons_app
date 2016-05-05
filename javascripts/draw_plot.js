@@ -1,4 +1,4 @@
-var draw_plot = function(yrange, xrange, data, group, dot_class) {
+var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class) {
     // xscale
     var x = d3.scale.linear()
         .range([xrange[0], xrange[1]]);
@@ -17,8 +17,14 @@ var draw_plot = function(yrange, xrange, data, group, dot_class) {
     var yAxis = d3.svg.axis()
         .scale(y)
         .orient("left");
-    x.domain([-scale,scale]).nice();
-    y.domain([-scale,scale]).nice();
+
+    if (plot_type == 'data') {
+        x.domain([-scale, scale]).nice();
+        y.domain([-scale, scale]).nice();
+    } else if (plot_type == 'loss') {
+        x.domain([0, data.length]);
+        y.domain([0, 1]);
+    }
 
     // draw x axis
     group.append("g")
@@ -30,7 +36,7 @@ var draw_plot = function(yrange, xrange, data, group, dot_class) {
         .attr("x", xrange[1])
         .attr("y", -6)
         .style("text-anchor", "end")
-        .text("x1");
+        .text(plot_type == 'data' ? "x1" : 'Iterations');
 
     // draw y axis
     group.append("g")
@@ -42,35 +48,46 @@ var draw_plot = function(yrange, xrange, data, group, dot_class) {
         .attr("y", 6)
         .attr("dy", ".71em")
         .style("text-anchor", "end")
-        .text("x2")
+        .text(plot_type == 'data' ? "x2" : 'Loss');
 
     // add data points
-    group.selectAll(".dot")
-        .data(data)
-      .enter().append("circle")
-        .attr("class", dot_class)
-        .attr("r", 3.5)
-        .attr("cx", function(d) { return x(d.x1); })
-        .attr("cy", function(d) { return y(d.x2); })
-        .style("fill", function(d) { return color(d.class); });
+    if (plot_type == 'data') {
+        group.selectAll(".dot")
+            .data(data)
+          .enter().append("circle")
+            .attr("class", dot_class)
+            .attr("r", 3.5)
+            .attr("cx", function(d) { return x(d.x1); })
+            .attr("cy", function(d) { return y(d.x2); })
+            .style("fill", function(d) { return color(d.class); });
 
-    // add legend
-    var legend = group.selectAll(".legend")
-        .data(color.domain())
-      .enter().append("g")
-        .attr("class", "legend")
-        .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+        // add legend
+        var legend = group.selectAll(".legend")
+            .data(color.domain())
+          .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
 
-    legend.append("rect")
-        .attr("x", xrange[1] - 18)
-        .attr("width", 18)
-        .attr("height", 18)
-        .style("fill", color);
+        legend.append("rect")
+            .attr("x", xrange[1] - 18)
+            .attr("width", 18)
+            .attr("height", 18)
+            .style("fill", color);
 
-    legend.append("text")
-        .attr("x", xrange[1] - 24)
-        .attr("y", 9)
-        .attr("dy", ".35em")
-        .style("text-anchor", "end")
-        .text(function(d) { return d; });
+        legend.append("text")
+            .attr("x", xrange[1] - 24)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .style("text-anchor", "end")
+            .text(function(d) { return d; });
+    }
+
+    if (plot_type == 'loss') {
+        group.append('path')
+            .attr('class', 'regrets')
+            .attr('d', line_function(data) )
+            .style("stroke", d3.rgb("rgb(255, 127, 14);"))
+            .attr("stroke-width", 2)
+            .attr("fill", "none");
+    }
 }; // end draw_plot
