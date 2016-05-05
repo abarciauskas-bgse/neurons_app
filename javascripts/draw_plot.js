@@ -52,6 +52,17 @@ var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class) {
 
     // add data points
     if (plot_type == 'data') {
+        // NOT SUPER HAPPY ABOUT THIS, BUT THERE IS SOME BUGS IN THE AREA-CREATING CODE BELOW
+        // WHICH CAUSES THE SHADED REGION TO GO CRAZY
+        var height = yrange[1]-yrange[0]
+        var clip = svg.append("svg:clipPath")
+          .attr("id", "clip")
+        .append("svg:rect")
+          .attr('width', height)
+          .attr('height', height)
+          .attr('x', xrange[0])
+          .attr('y', yrange[0]);   
+               
         group.selectAll(".dot")
             .data(data)
           .enter().append("circle")
@@ -85,7 +96,7 @@ var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class) {
     if (plot_type == 'loss') {
         group.append('path')
             .attr('class', 'regrets')
-            .attr('d', line_function(data) )
+            .attr('d', loss_line_function(data) )
             .style("stroke", d3.rgb("rgb(255, 127, 14);"))
             .attr("stroke-width", 2)
             .attr("fill", "none");

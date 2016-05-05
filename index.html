@@ -41,9 +41,9 @@ svg {
 <script src="javascripts/step.js"></script>
 <script src="javascripts/draw_plot.js"></script>
 <script src="javascripts/shade_plot.js"></script>
+<script src="javascripts/update_functions.js"></script>
 <script>
-
-    // layout
+    // LAYOUT
     var golden_ratio = 1.618,
         width = 1024,
         total_height = 768, // height of whole container
@@ -55,75 +55,55 @@ svg {
         .attr("height", total_height)
       .append("g")
 
-    // data init
-    var wts = runifo(2, 3) // will be the true weights
-    var eta = 1
-    var n = 100
-    var scale = 3
-    var data = simulate_training_data(wts, eta, n, scale)
-
+    // DATA PLOTS
     var first_plot_group = svg.append("g")
         .attr("id", "first_plot_group")
         .attr("transform", "translate(0," + height1 + ")")
     var second_plot_group = svg.append("g")
         .attr("id", "second_plot_group")
         .attr("transform", "translate(" + (height2+50) + "," + height1 + ")")
+
+    // LOSS PLOT
+    var loss_memory = 100
+    var short_term_regrets = new Array(loss_memory).fill(0.0)
     var losses_plot_group = svg.append("g")
         .attr("id", "losses_plot_group")
         .attr("transform", "translate(" + (height2+50)*2 + "," + height1 + ")")
-
-    // FIXME: not dry with draw_plot
-    var loss_memory = 100
-    var regrets = new Array(loss_memory).fill(0.0);
-    xrange = [0,height2]
-    yrange = [0,height2]
+    var loss_xrange = [0,height2]
+    var loss_yrange = [0,height2]
     // xscale
-    var x = d3.scale.linear()
-        .range([xrange[0], xrange[1]]);
+    var loss_xscale = d3.scale.linear().range([loss_xrange[0], loss_xrange[1]]);
     // yscale
-    var y = d3.scale.linear()
-        .range([yrange[1], yrange[0]]);
-    x.domain([0, regrets.length]);
-    y.domain([0, 1]);
-    var line_function = d3.svg.line()
-            .x(function(d, i) { return x(i) })
-            .y(function(d, i) { return y(d) })
-            //.interpolate('linear')
-    
-    // draw the first plot with the points plotted
+    var loss_yscale = d3.scale.linear().range([loss_yrange[1], loss_yrange[0]]);
+
+    loss_xscale.domain([0, short_term_regrets.length]);
+    loss_yscale.domain([0, 1]);
+    var loss_line_function = d3.svg.line()
+            .x(function(d, i) { return loss_xscale(i) })
+            .y(function(d, i) { return loss_yscale(d) })
+
+
+    // Step 0: Simulate traning data
+    var wts = runifo(2, 3) // will be the true weights
+    var eta = 1
+    var n = 100
+    var scale = 3
+    var data = simulate_training_data(wts, eta, n, scale)
+    // draw plots
     draw_plot([0,height2], [0,height2], 'data', data, first_plot_group, 'dot dot-active')
     draw_plot([0,height2], [0,height2], 'data', data, second_plot_group, 'dot')
-    draw_plot([0,height2], [0,height2], 'loss', regrets, losses_plot_group)
+    draw_plot(loss_xrange, loss_yrange, 'loss', short_term_regrets, losses_plot_group)
     shade_plot([0,height2], [0,height2], wts, scale, second_plot_group)
 
-    var step_duration = 200
-    var update_shaded = function(weights, delay_offset) {
-        // FIXME: is there someway to just update the area (e.g. need transition)
-        d3.selectAll('#second_plot_group .area').remove();
-        // FIXME: Can just add it the first time and then don't have to keep removing it
-        d3.selectAll('clippath#clip').remove();
-        shade_plot([0,height2], [0,height2], weights, scale, second_plot_group)
-    }
-
-    var update_loss = function(regrets, loss, delay_offset) {
-        regrets.push(loss);
-        d3.selectAll('path.regrets').attr("d", line_function(regrets))
-          .attr("transform", null)
-          .transition()
-          .attr("transform", "translate(" + x(-1) + ")");
-        regrets.shift();
-    }
-
-    // now iterate e.g. perceptron
     // Step 1: initialization
     var weights = runifo(2,3)
     var points = d3.selectAll('#second_plot_group .dot')[0]
     var max_iters = 100
     var long_term_regrets = []
-    var loss_memory = 100
-    var short_term_regrets = new Array(loss_memory).fill(0.0);
     var all_weights = []
-    // Step 2: iterations
+    var step_duration = 200
+
+    // Step 2: Iterate
     for (var iter = 0; iter < max_iters; iter ++) {
       for (var i = 0; i < n-1; i ++) {
           point = data[i]        
@@ -134,16 +114,6 @@ svg {
       }
     }
 
-    var step_update = function(iter, short_term_regrets, all_weights, long_term_regrets) {
-        iter_weights = all_weights[iter]
-        iter_loss = long_term_regrets[iter]
-        update_shaded(iter_weights, iter)
-        update_loss(short_term_regrets, iter_loss, iter)
-        // highlight new point for first n iters
-        //if (iter<n) { d3.select(points[iter]).transition().delay(iter * step_duration).attr('class', 'dot dot-active') }
-        if (iter<n) { d3.select(points[iter]).transition().attr('class', 'dot dot-active') }
-    }
-
     var play = function() {
         for (var iter = 0; iter < max_iters*n; iter++) {
             setTimeout(function(i) {
@@ -151,5 +121,6 @@ svg {
             }, step_duration*iter, iter)
         }
     }
+    play();
 </script>
 

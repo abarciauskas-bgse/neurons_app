@@ -1,4 +1,4 @@
-var shade_plot = function(yrange, xrange, wts, scale, group) {
+var shade_plot = function(yrange, xrange, wts, scale, group, update) {
     // xscale
     var x = d3.scale.linear()
         .range([xrange[0], xrange[1]]);
@@ -8,17 +8,6 @@ var shade_plot = function(yrange, xrange, wts, scale, group) {
 
     x.domain([-scale,scale]).nice();
     y.domain([-scale,scale]).nice();
-
-    // NOT SUPER HAPPY ABOUT THIS, BUT THERE IS SOME BUGS IN THE AREA-CREATING CODE BELOW
-    // WHICH CAUSES THE SHADED REGION TO GO CRAZY
-    var height = yrange[1]-yrange[0]
-    var clip = svg.append("svg:clipPath")
-      .attr("id", "clip")
-    .append("svg:rect")
-      .attr('width', height)
-      .attr('height', height)
-      .attr('x', xrange[0])
-      .attr('y', yrange[0]);
 
     var area = d3.svg.area()
       .x(function(d) {return x(d[0]);})
@@ -50,9 +39,15 @@ var shade_plot = function(yrange, xrange, wts, scale, group) {
         return [x1_vals[i], x2_vals[i]];
     });
 
-    group.append("path")
-        .datum(shading_pts)
-        .attr("class", "area")
-        .attr("d", area)
-        .attr('clip-path', "url(#clip)");
+    if (update) {
+        group.selectAll('.area').transition().duration(step_duration)
+            .attr('d', area(shading_pts))
+            .attr('clip', "url(#clip)")
+    } else {
+        group.append("path")
+            .attr("class", "area")
+            .attr("d", area(shading_pts))
+            .attr('clip-path', "url(#clip)");        
+
+    }
 } // end shade plot
