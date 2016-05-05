@@ -16,6 +16,7 @@ var update_loss = function(regrets, loss, delay_offset) {
 }
 
 var step_update = function(iter, short_term_regrets, all_weights, long_term_regrets) {
+    current_iter = iter
     var points = d3.selectAll('#second_plot_group .dot')[0]
     iter_weights = all_weights[iter]
     iter_loss = long_term_regrets[iter]

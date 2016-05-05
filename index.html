@@ -1,40 +1,78 @@
 <!DOCTYPE html>
+<html>
 <meta charset="utf-8">
-<style>
+<head>
+    <style>
 
-body {
-  font: 10px sans-serif;
-}
+    body {
+      font: 10px sans-serif;
+    }
 
-.axis path,
-.axis line {
-  fill: none;
-  stroke: #000;
-  shape-rendering: crispEdges;
-}
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: #000;
+      shape-rendering: crispEdges;
+    }
 
-.dot {
-  stroke: #000;
-  opacity: 0;
-}
+    .dot {
+      stroke: #000;
+      opacity: 0;
+    }
 
-.dot-active {
-  opacity: 1;
-}
+    .dot-active {
+      opacity: 1;
+    }
 
-.area {
-    fill: lightsteelblue;
-    stroke-width: 0;
-    opacity: 0.5;
-}
+    .area {
+        fill: lightsteelblue;
+        stroke-width: 0;
+        opacity: 0.5;
+    }
 
-svg {
-  display: block;
-  margin: 0px auto;
-}
+    #container {
+        width: 1024px;
+        display: block;
+        margin: 0px auto;
+    }
 
-</style>
+    #controls {
+        position: relative;
+        display: block;
+        height: 32px;
+        width: 110px;
+    }
+
+    .fa.player-icons {
+        font-size: 18px;
+        color: #333;
+        margin-right: 10px;
+        position: absolute;
+        bottom: 6px;
+    }
+
+    .fa.player-icons.icon-lrg {
+        font-size: 32px;
+        bottom: 0px;
+    }    
+
+
+    </style>
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
+</head>
+
 <body>
+    <div id="container">
+        <div id='controls'>
+            <i class="fa fa-repeat player-icons" style="left:0px" id="refresh-button"></i>
+            <i class="fa fa-play player-icons icon-lrg" style="left: 28px" id="play-button"></i>
+            <i class="fa fa-pause player-icons" style="left: 60px" id="pause-button"></i>
+            <i class="fa fa-step-forward player-icons" style="left: 90px" id="step-button"></i>
+        </div>
+    </div>
+</body>
+
+<footer>
 <script src="//d3js.org/d3.v3.min.js"></script>
 <script src="javascripts/rbinom.js"></script>
 <script src="javascripts/randoms.js"></script>
@@ -50,7 +88,7 @@ svg {
         height1 = total_height/golden_ratio,
         height2 = height1/golden_ratio; // height of lower container, with scatter plots
 
-    var svg = d3.select("body").append("svg")
+    var svg = d3.select("#container").append("svg")
         .attr("width", width)
         .attr("height", total_height)
       .append("g")
@@ -58,17 +96,17 @@ svg {
     // DATA PLOTS
     var first_plot_group = svg.append("g")
         .attr("id", "first_plot_group")
-        .attr("transform", "translate(0," + height1 + ")")
+        .attr("transform", "translate(28," + 20 + ")")
     var second_plot_group = svg.append("g")
         .attr("id", "second_plot_group")
-        .attr("transform", "translate(" + (height2+50) + "," + height1 + ")")
+        .attr("transform", "translate(" + (height2+50) + "," + 20 + ")")
 
     // LOSS PLOT
     var loss_memory = 100
     var short_term_regrets = new Array(loss_memory).fill(0.0)
     var losses_plot_group = svg.append("g")
         .attr("id", "losses_plot_group")
-        .attr("transform", "translate(" + (height2+50)*2 + "," + height1 + ")")
+        .attr("transform", "translate(" + (height2+50)*2 + "," + 20 + ")")
     var loss_xrange = [0,height2]
     var loss_yrange = [0,height2]
     // xscale
@@ -114,13 +152,39 @@ svg {
       }
     }
 
+    var timeouts = [];
+    var current_iter = 0;
     var play = function() {
         for (var iter = 0; iter < max_iters*n; iter++) {
-            setTimeout(function(i) {
-                step_update(i, short_term_regrets, all_weights, long_term_regrets)
-            }, step_duration*iter, iter)
+            current_iter += 1
+            timeouts.push(
+                setTimeout(function(i) {
+                    step_update(i, short_term_regrets, all_weights, long_term_regrets)
+                }, step_duration*iter, current_iter)
+            );
         }
     }
-    play();
-</script>
 
+    // Controls
+    d3.select('#play-button').on("click", function() {play()});
+    d3.select('#pause-button').on("click", function() {
+        for (var i = 0; i < timeouts.length; i++) {
+            clearTimeout(timeouts[i]);
+        }
+        //quick reset of the timer array you just cleared
+        timeouts = [];        
+    });
+    d3.select("#step-button").on("click", function() {
+        step_update(current_iter, short_term_regrets, all_weights, long_term_regrets)
+    })
+    // do more here to clear the data and regenerate it
+    d3.select('#refresh-button').on("click", function() {
+        for (var i = 0; i < timeouts.length; i++) {
+            clearTimeout(timeouts[i]);
+        }
+        //quick reset of the timer array you just cleared
+        timeouts = [];        
+    });    
+</script>
+</footer>
+</html>
