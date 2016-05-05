@@ -98,41 +98,58 @@ svg {
 
     var step_duration = 200
     var update_shaded = function(weights, delay_offset) {
-        setTimeout(function() {
-          // FIXME: is there someway to just update the area (e.g. need transition)
-          d3.selectAll('#second_plot_group .area').remove();
-          // FIXME: Can just add it the first time and then don't have to keep removing it
-          d3.selectAll('clippath#clip').remove();
-          shade_plot([0,height2], [0,height2], weights, scale, second_plot_group)
-        }, delay_offset * step_duration)
+        // FIXME: is there someway to just update the area (e.g. need transition)
+        d3.selectAll('#second_plot_group .area').remove();
+        // FIXME: Can just add it the first time and then don't have to keep removing it
+        d3.selectAll('clippath#clip').remove();
+        shade_plot([0,height2], [0,height2], weights, scale, second_plot_group)
     }
 
     var update_loss = function(regrets, loss, delay_offset) {
-        setTimeout(function() {
-            regrets.push(loss);
-            d3.selectAll('path.regrets').attr("d", line_function(regrets))
-              .attr("transform", null)
-              .transition()
-              .attr("transform", "translate(" + x(-1) + ")");
-            regrets.shift();
-        }, delay_offset * step_duration)
+        regrets.push(loss);
+        d3.selectAll('path.regrets').attr("d", line_function(regrets))
+          .attr("transform", null)
+          .transition()
+          .attr("transform", "translate(" + x(-1) + ")");
+        regrets.shift();
     }
 
     // now iterate e.g. perceptron
-    // init weights
+    // Step 1: initialization
     var weights = runifo(2,3)
     var points = d3.selectAll('#second_plot_group .dot')[0]
-    var iters = 100
-    for (var iter = 0; iter < iters; iter ++) {
+    var max_iters = 100
+    var long_term_regrets = []
+    var loss_memory = 100
+    var short_term_regrets = new Array(loss_memory).fill(0.0);
+    var all_weights = []
+    // Step 2: iterations
+    for (var iter = 0; iter < max_iters; iter ++) {
       for (var i = 0; i < n-1; i ++) {
           point = data[i]        
           res = step(point, weights)
+          all_weights.push(res.weights)
           weights = res.weights
-          loss = res.loss
-          update_shaded(weights, (i+1)*iter)
-          update_loss(regrets, loss, (i+1)*iter)
-          if (iter == 0) { d3.select(points[i]).transition().delay(i * step_duration).attr('class', 'dot dot-active') }
+          long_term_regrets.push(res.loss)
       }
+    }
+
+    var step_update = function(iter, short_term_regrets, all_weights, long_term_regrets) {
+        iter_weights = all_weights[iter]
+        iter_loss = long_term_regrets[iter]
+        update_shaded(iter_weights, iter)
+        update_loss(short_term_regrets, iter_loss, iter)
+        // highlight new point for first n iters
+        //if (iter<n) { d3.select(points[iter]).transition().delay(iter * step_duration).attr('class', 'dot dot-active') }
+        if (iter<n) { d3.select(points[iter]).transition().attr('class', 'dot dot-active') }
+    }
+
+    var play = function() {
+        for (var iter = 0; iter < max_iters*n; iter++) {
+            setTimeout(function(i) {
+                step_update(i, short_term_regrets, all_weights, long_term_regrets)
+            }, step_duration*iter, iter)
+        }
     }
 </script>
 
