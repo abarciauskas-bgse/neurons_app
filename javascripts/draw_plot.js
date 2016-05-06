@@ -11,11 +11,13 @@ var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class, upda
     // xAxis
     var xAxis = d3.svg.axis()
         .scale(x)
+        .ticks(plot_type == 'loss' ? 0 : 5)
         .orient("bottom");
 
     // yAxis
     var yAxis = d3.svg.axis()
         .scale(y)
+        .ticks(5)
         .orient("left");
 
     if (plot_type == 'data') {
@@ -94,7 +96,7 @@ var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class, upda
             .attr("r", 3.5)
             .attr("cx", function(d) { return x(d.x1); })
             .attr("cy", function(d) { return y(d.x2); })
-            .style("fill", function(d) { return color(d.class); });        
+            .style("fill", function(d) { return d.class == 1 ? '#E88923' : '#9F55E8'; });        
     }
 
     if (plot_type == 'loss') {
@@ -102,7 +104,7 @@ var draw_plot = function(yrange, xrange, plot_type, data, group, dot_class, upda
         group.append('path')
             .attr('class', 'regrets')
             .attr('d', loss_line_function(data) )
-            .style("stroke", d3.rgb("rgb(255, 127, 14);"))
+            .style("stroke", "#E88923")
             .attr("stroke-width", 2)
             .attr("fill", "none");        
     }

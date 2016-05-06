@@ -5,18 +5,21 @@
     <style>
 
     body {
-      font: 10px sans-serif;
+        font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+        font-weight: 300;
+        font-size: 8px;
+        background: #222;
+        color: #eee;
     }
 
     .axis path,
     .axis line {
       fill: none;
-      stroke: #000;
+      stroke: #eee;
       shape-rendering: crispEdges;
     }
 
     .dot {
-      stroke: #000;
       opacity: 0;
     }
 
@@ -33,7 +36,6 @@
     }
 
     .area {
-        fill: lightsteelblue;
         stroke-width: 0;
         opacity: 0.5;
     }
@@ -41,41 +43,89 @@
     #container {
         width: 1024px;
         display: block;
-        margin: 0px auto;
+        margin: 50px auto;
     }
 
     #controls {
         position: relative;
         display: block;
-        height: 32px;
-        width: 110px;
+        width: 175.5px;
+        text-align: center;
     }
 
     .fa.player-icons {
-        font-size: 18px;
-        color: #333;
-        margin-right: 10px;
-        position: absolute;
-        bottom: 6px;
+        font-size: 12px;
+        /*padding-right: 5px;*/
+        padding-left: 2px;
+        vertical-align: 11px;
     }
 
     .fa.player-icons.icon-lrg {
+        padding-left: 10px;
+        padding-right: 7px;
+        vertical-align: none;
         font-size: 32px;
-        bottom: 0px;
+        vertical-align: 5px;
     }    
 
 
+    .negative_region {
+        opacity: 0.2;
+    }
+
+    .pos_bar {
+        fill: #fefefe;
+    }
+
+    .neg_bar {
+        fill: #333;
+    }
+
+    .wx_bar {
+        opacity: 0;
+    }
+
+    .link, .addition_link {
+      fill: none;
+      stroke: #fefefe;
+      opacity: .3;
+    }
+
+    #iterations-counter {
+        width: 100%;
+    }
+
+    #iterations-counter h1 {
+        text-align: right;
+        font-weight: 900;
+        font-size: 48px;
+    }
+
+    svg {
+        fill: #eee;
+    }
+
+    #title h2 {
+        font-size: 18px;
+        font-weight: 100;
+    }
     </style>
     <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
 </head>
 
 <body>
     <div id="container">
+        <div id='title'>
+            <h2>Visualization of a single neuron (work in progress)</h2>
+        </div>
+        <div id='iterations-counter'>
+            <h1>Iterations: <span id="current-iteration">0</span></h1>
+        </div>
         <div id='controls'>
-            <i class="fa fa-repeat player-icons" style="left:0px" id="refresh-button"></i>
-            <i class="fa fa-play player-icons icon-lrg" style="left: 28px" id="play-button"></i>
-            <i class="fa fa-pause player-icons" style="left: 60px" id="pause-button"></i>
-            <i class="fa fa-step-forward player-icons" style="left: 90px" id="step-button"></i>
+            <i class="fa fa-repeat player-icons" id="refresh-button"></i>
+            <i class="fa fa-play player-icons icon-lrg" id="play-button"></i>
+            <i class="fa fa-pause player-icons" id="pause-button"></i>
+            <i class="fa fa-step-forward player-icons" id="step-button"></i>
         </div>
     </div>
 </body>
@@ -88,35 +138,45 @@
 <script src="javascripts/draw_plot.js"></script>
 <script src="javascripts/shade_plot.js"></script>
 <script src="javascripts/update_functions.js"></script>
+<script src="javascripts/transfer.js"></script>
 <script>
     // LAYOUT
     var golden_ratio = 1.618,
         width = 1024,
         total_height = 768, // height of whole container
-        height1 = total_height/golden_ratio,
-        height2 = height1/golden_ratio; // height of lower container, with scatter plots
-
+        // width of transfer functio container
+        width1 = 1024/golden_ratio,
+        // width of sidebar containters
+        width2 = (width - width1)/2,
+        padding = 30,
+        plot_width = width2 - 2*padding;
+        //console.log(width2)
     var svg = d3.select("#container").append("svg")
         .attr("width", width)
         .attr("height", total_height)
       .append("g")
 
     // DATA PLOTS
+    // first plot is on far left
     var first_plot_group = svg.append("g")
         .attr("id", "first_plot_group")
+        // add 28px to make room for axis
+        // TODO: padding of 20 for padding from top - should be var
         .attr("transform", "translate(28," + 20 + ")")
+
+    // second plot should be on far right
     var second_plot_group = svg.append("g")
         .attr("id", "second_plot_group")
-        .attr("transform", "translate(" + (height2+50) + "," + 20 + ")")
+        .attr("transform", "translate(" + (width-width2) + "," + 20 + ")")
 
     // LOSS PLOT
     var loss_memory = 100
     var short_term_regrets = new Array(loss_memory).fill(0.0)
     var losses_plot_group = svg.append("g")
         .attr("id", "losses_plot_group")
-        .attr("transform", "translate(" + (height2+50)*2 + "," + 20 + ")")
-    var loss_xrange = [0,height2]
-    var loss_yrange = [0,height2]
+        .attr("transform", "translate(" + (width-width2) + "," + width2 + ")")
+    var loss_xrange = [0,plot_width]
+    var loss_yrange = [0,plot_width]
     // xscale
     var loss_xscale = d3.scale.linear().range([loss_xrange[0], loss_xrange[1]]);
     // yscale
@@ -134,7 +194,9 @@
     var n = 100 // number of training points
     var scale = 3 // scale of data, -scale to scale
     var max_iters = 100
-    var step_duration = 200
+    var max_step_time = 5000
+    var min_step_time = 200
+    var time_scale = d3.scale.pow().exponent(-1/3).domain([1,1000]).range([max_step_time, min_step_time]);
     var timeouts = [];
     var current_iter = 0;
 
@@ -145,8 +207,8 @@
         var short_term_regrets = new Array(loss_memory).fill(0.0)
         losses_plot_group.selectAll('path').remove();
         // update plots
-        draw_plot([0,height2], [0,height2], 'data', data, first_plot_group, 'dot dot-active', update ? true : false)
-        draw_plot([0,height2], [0,height2], 'data', data, second_plot_group, 'dot', update ? true : false)
+        draw_plot([0,plot_width], [0,plot_width], 'data', data, first_plot_group, 'dot dot-active', update ? true : false)
+        draw_plot([0,plot_width], [0,plot_width], 'data', data, second_plot_group, 'dot', update ? true : false)
         draw_plot(loss_xrange, loss_yrange, 'loss', short_term_regrets, losses_plot_group, update ? true : false)
 
         second_plot_group.selectAll('.area').remove();
@@ -171,14 +233,21 @@
         return {all_weights: all_weights, short_term_regrets: short_term_regrets, long_term_regrets: long_term_regrets}
     }
 
+    var sub_step_time = function() {
+        console.log(current_iter)
+        return time_scale(current_iter)/6;
+    }
+    var total_time = 0;
     var play = function() {
         for (var iter = 0; iter < max_iters*n; iter++) {
             current_iter += 1
+            step_duration = time_scale(current_iter)
             timeouts.push(
                 setTimeout(function(i) {
                     step_update(i, short_term_regrets, all_weights, long_term_regrets)
-                }, step_duration*iter, current_iter)
+                }, total_time, current_iter)
             );
+            total_time += step_duration
         }
     }
 
@@ -189,7 +258,8 @@
             clearTimeout(timeouts[i]);
         }
         //quick reset of the timer array you just cleared
-        timeouts = [];        
+        timeouts = []; 
+        total_time = 0;       
     });
     d3.select("#step-button").on("click", function() {
         current_iter += 1
@@ -207,7 +277,8 @@
             clearTimeout(timeouts[i]);
         }
         //quick reset of the timer array you just cleared
-        timeouts = [];        
+        timeouts = [];
+        total_time = 0;     
     });
 
     // first time setup
@@ -216,6 +287,89 @@
     var long_term_regrets = initial_data.long_term_regrets;
     var all_weights = initial_data.all_weights;
 
+
+    // TRANSFER FUNCTION
+    var sub_step_time = function() {
+        return time_scale(current_iter)/6;
+    }
+    var transfer_multiply_height = width2-padding
+    var transfer_addition_height = transfer_multiply_height*2
+
+    // scales for transfer function
+    var transfer_multiply_xscale = d3.scale.linear()
+        .range([0, transfer_multiply_height]);
+    var transfer_multiply_yscale = d3.scale.linear()
+        .domain([-6,0,6])
+        .range([-transfer_multiply_height/2, 0, transfer_multiply_height/2]);
+
+    // wtoffset for weights
+    var wtoffset = transfer_multiply_height/2
+    var barwidth = 10
+    var offset = 2
+    var bandWidth = 140
+    var unit_bar_height = transfer_multiply_yscale(1)
+
+    // group for first variable
+    var transfer_multiply_group_1 = svg.append('svg:g')
+        .attr('id', 'transfer_group_1')
+        .attr('class', 'transfer_group_multiply')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height)
+        .attr('transform', 'translate(' + (width2+padding) + ',' + 20 + ')')
+
+    transfer_multiply_group_1.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height/2)
+        .attr('y', transfer_multiply_height/2)
+
+    d3.select('#transfer_group_1').append('text').text('data: x1')
+    d3.select('#transfer_group_1').append('text').text('weights').attr('x', transfer_multiply_height/2-barwidth)
+
+    var transfer_multiply_group_2 = svg.append('svg:g')
+        .attr('id', 'transfer_group_2')
+        .attr('class', 'transfer_group_multiply')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height)
+        .attr('transform', "translate(" + (width2+padding) + "," + (20+transfer_multiply_height) + ")")
+
+    transfer_multiply_group_2.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_multiply_height)
+        .attr('height', transfer_multiply_height/2)
+        .attr('y', transfer_multiply_height/2)
+
+    d3.select('#transfer_group_2').append('text').text('x2').attr('y', 20)
+
+    // The addition square
+    var transfer_addition_group = svg.append('svg:g')
+        .attr('id', 'transfer_addition_group')
+        .attr('width', transfer_addition_height)
+        .attr('height', transfer_addition_height)
+        .attr('transform', "translate(" + (width2+padding+transfer_addition_height/2) + "," + 20 + ")")
+
+    transfer_addition_group.append('svg:rect')
+        .attr('class', 'negative_region')
+        .attr('width', transfer_addition_height)
+        .attr('height', transfer_addition_height/2)
+        .attr('y', transfer_addition_height/2)
+
+    // the threshold
+    var threshold_width = barwidth
+    var threshold_offset = transfer_multiply_height + width2 + padding + transfer_addition_height
+    var threshold_top_offset = 30
+    svg.append('svg:rect')
+        .attr('id', 'threshold_bar')
+        .attr('class', 'negative_region')
+        .attr('x', threshold_offset-barwidth)
+        .attr('y', threshold_top_offset)
+        .attr('height', transfer_multiply_height - threshold_top_offset - transfer_multiply_yscale(1))
+        .attr('width', threshold_width)
+
+    svg.append('text').text('threshold')
+        .attr('x', threshold_offset-barwidth-22)
+        .attr('y', '20px')
+    
 </script>
 </footer>
 </html>

@@ -6,18 +6,16 @@ var step = function(data_point, init_weights) {
     // sigmoid in this case
     f_neuron1 = 1/(1+Math.exp(-input_neuron1))
     // this is the ouptput of the neuron
-    // if y = 1, f_neuron is the correct predicted probability
-    // if y = 0, 1-f_neuron1 is the correct predicted probability
-    loss_neuron1 = (data_point.class == 0) ? (1 - f_neuron1) : f_neuron1
+    loss_neuron1 = data_point.class-f_neuron1
 
-    dLdF = (data_point.class == 1) ? -1 : 1
+    dLdF = 1
     dL = loss_neuron1 * dLdF
     // the gradient for this neuron and this input
     dW = dL * f_neuron1 * (1 - f_neuron1)
 
     //weights_neuron1 += np.dot(obs, dW)
     new_weights = [init_weights[0] + data_point.x1 * dW, init_weights[1] + data_point.x2 * dW]
-    return {'weights': new_weights, 'loss': loss_neuron1}
+    return {'weights': new_weights, 'loss': Math.abs(loss_neuron1)}
 }
 
 // losses = []
