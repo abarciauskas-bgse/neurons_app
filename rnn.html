@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+    <meta charset="utf-8">
+    <head>
+        <style>
+            body {
+                /*background: #333;*/
+            }
+            #container {
+                width: 1024px;
+                display: block;
+                margin: 50px auto;
+            }
+        </style>
+        <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
+    </head>
+
+
+    <body>
+        <div id="container"></div>
+    </body>
+
+    <footer>
+        <script src="//d3js.org/d3.v3.min.js"></script>
+        <script src="javascripts/colorbrewer.min.js"></script>
+        <script>
+            // LAYOUT
+            var golden_ratio = 1.618,
+                width = 1024,
+                height = 768, // height of whole container
+                header_height = 100,
+                outer_margin = 50,
+                unit_width = 20,
+                unit_height = unit_width,
+                transfer_width = 40,
+                song_bars_height = 100,
+                songs_bar_y_offset = height - song_bars_height - outer_margin,
+                song_bars_group_length = width - 2*outer_margin,
+                inner_margin = 20,
+                neuron_width = width - 2*outer_margin - 2*unit_width - 2*transfer_width - inner_margin/2,
+                neuron_height = (height - 2*outer_margin - inner_margin - 2*outer_margin)/2,
+                num_classes = 11,
+                weights_group_height = num_classes*unit_height,
+                input_group_offset = height - (height - outer_margin) + neuron_height/2 + inner_margin/2
+
+
+            var kolors = d3.scale.ordinal()
+                .domain(d3.range(0,num_classes))
+                .range(colorbrewer.Spectral[num_classes]);
+
+            var svg = d3.select("#container").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+
+            input_group1 = svg.append("g")
+                            .attr("class", "input_group units_group")
+                            .attr("id", "input_group1")
+                            .attr("width", unit_width)
+                            .attr("height", unit_height*num_classes)
+                            .attr("transform", "translate(" + outer_margin + "," + input_group_offset + ")")
+
+            // sanity check for layout
+            input_group1.selectAll('rect')
+                .data(d3.range(0,num_classes))
+                .enter().append('rect')
+                    .attr('class','unit')
+                    .attr('stroke', '#eee')
+                    .attr('fill', 'white')
+                    .attr('width', unit_width)
+                    .attr('height', unit_height)
+                    .attr('y', function(d, i) { return i*unit_height})
+
+            song_bars_group = svg.append("g")
+                .attr("id", "#song_bars_group")
+                .attr("transform", "translate(" + outer_margin + "," + songs_bar_y_offset + ")")
+            song_bar_yscale = d3.scale.linear().domain([0,num_classes]).range([0, song_bars_height])
+
+            d3.range(0,num_classes).forEach(function(d) {
+                song_bars_group.append("line")
+                    .attr("x1", 0)
+                    .attr("y1", song_bar_yscale(d))
+                    .attr("x2", width - outer_margin)
+                    .attr("y2", song_bar_yscale(d))
+                    .attr("stroke", "#eee")
+            })
+
+            // function plot_song(song)
+            song_bar_note_height = song_bars_height/num_classes
+            d3.json("daft_punk-one_more_time.json", function(data) {
+                seq_length = d3.max(data.map(function(d) { return d.seq_idx }))
+                song_bar_note_width = song_bars_group_length/seq_length + 1
+                xscale = d3.scale.linear().domain([0,seq_length]).range([0, song_bars_group_length])
+                song_bars_group.selectAll('rect')
+                    .data(data).enter()
+                      .append('rect').attr('class', 'song_bar_unit')
+                      .attr('x', function(d) { return xscale(d.seq_idx) })
+                      .attr('y', function(d) { return song_bar_yscale(d.note) })
+                      .attr('height', song_bar_note_height)
+                      .attr('width', song_bar_note_width)
+                      .attr('fill', function(d) { return kolors(d.note) })
+            })
+
+        </script>
+    </footer>
+</html>
