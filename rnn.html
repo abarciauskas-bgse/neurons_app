@@ -25,11 +25,13 @@
         <script src="javascripts/colorbrewer.min.js"></script>
         <script>
             // LAYOUT
-            var golden_ratio = 1.618,
+            var num_classes = 11,
+                num_neurons = 2,
+                num_layers = 2,
                 width = 1024,
                 height = 768, // height of whole container
                 header_height = 100,
-                outer_margin = 50,
+                outer_margin = 0,
                 unit_width = 20,
                 unit_height = unit_width,
                 transfer_width = 40,
@@ -37,11 +39,18 @@
                 songs_bar_y_offset = height - song_bars_height - outer_margin,
                 song_bars_group_length = width - 2*outer_margin,
                 inner_margin = 20,
+                neuron_y_offset = 30,
                 neuron_width = width - 2*outer_margin - 2*unit_width - 2*transfer_width - inner_margin/2,
-                neuron_height = (height - 2*outer_margin - inner_margin - 2*outer_margin)/2,
-                num_classes = 11,
+                neuron_height = (height // height dynamically defined by other factors
+                    - 2*outer_margin // borders around the network
+                    - 2*neuron_y_offset // offset from top and bottom of the network
+                    - inner_margin*(num_neurons-1) // space between neurons in a layer
+                    - song_bars_height)/num_neurons, // divide by number of neurons
+                network_y_position = neuron_y_offset + outer_margin + header_height,
                 weights_group_height = num_classes*unit_height,
-                input_group_offset = height - (height - outer_margin) + neuron_height/2 + inner_margin/2
+                unit_group_y_position = network_y_position + (neuron_height + inner_margin - weights_group_height)/2,
+                layer_width = (width + 2*outer_margin)/2,
+                light_grey = '#eee'
 
 
             var kolors = d3.scale.ordinal()
@@ -52,23 +61,218 @@
                 .attr("width", width)
                 .attr("height", height)
 
-            input_group1 = svg.append("g")
-                            .attr("class", "input_group units_group")
-                            .attr("id", "input_group1")
-                            .attr("width", unit_width)
-                            .attr("height", unit_height*num_classes)
-                            .attr("transform", "translate(" + outer_margin + "," + input_group_offset + ")")
+            var UnitSet = function(type, layer) {
+                this.type = type;
+                this.layer = layer;
+                this.y_position = unit_group_y_position;
+            }
 
-            // sanity check for layout
-            input_group1.selectAll('rect')
-                .data(d3.range(0,num_classes))
-                .enter().append('rect')
-                    .attr('class','unit')
-                    .attr('stroke', '#eee')
+            UnitSet.prototype.x_position = function() {
+                var position = null;
+                switch(this.type) {
+                    case 'input':
+                        // Not really sure about the second case, could be we use the output from layer 0
+                        position = (this.layer == 0) ? outer_margin : (outer_margin + layer_width + inner_margin/2);
+                        break;
+                    case 'output':
+                        position = (this.layer == 0) ? (outer_margin + layer_width - inner_margin/2 ): (width - outer_margin);
+                        break;
+                    case 'target':
+                        position = second_layer_visible ? (width - outer_margin) : (outer_margin + layer_width + inner_margin/2)
+                        break;
+                }
+                return position;
+            };
+
+            UnitSet.prototype.add = function() {
+                group = svg.append("g")
+                    .attr("class", "units_group")
+                    .attr("id", function() { return "unit_group_" + this.type + "L" + this.layer })
+                    .attr("transform", "translate(" + this.x_position() + "," + this.y_position + ")")
+                group.selectAll('rect')
+                    .data(d3.range(0,num_classes))
+                    .enter().append('rect')
+                        .attr('class', function(d, i) { return "unit_" + this.type + "L" + this.layer + "_" + i })
+                        .attr('stroke', light_grey)
+                        .attr('fill', 'white')
+                        .attr('width', unit_width)
+                        .attr('height', unit_height)
+                        .attr('y', function(d, i) { return i*unit_height})                                    
+            };
+
+            Neuron = function(layer, index) {
+                this.layer = layer;
+                this.index = index;
+                this.height = neuron_height;
+                this.width = neuron_width
+            }
+
+            Neuron.prototype.y_position = function() {
+                return (this.index == 0) ? network_y_position : (network_y_position + neuron_height + inner_margin)
+            }
+
+            Neuron.prototype.x_position = function() {
+                var neuron_x_offset = outer_margin + unit_width + transfer_width
+                return (this.layer == 0) ? neuron_x_offset : (layer_width + neuron_x_offset)
+            }
+
+            Neuron.prototype.add = function() {
+                group = svg.append("g")
+                    .attr("class", "neuron_group")
+                    .attr("id", function() { return "neuron_group_L" + this.layer  + "_N" + this.index })
+                    .attr("transform", "translate(" + this.x_position + "," + this.y_position + ")") 
+                group.append('rect')
+                    .attr('class', 'neuron_container')
+                    .attr('width', neuron_width)
+                    .attr('height', neuron_height)
+                    .attr('fill', light_grey)
+            }
+
+            WeightsSet = function(type, layer, neuron) {
+                this.type = type;
+                this.layer = layer;
+                this.neuron = neuron;
+                this.y_offset = (neuron_height - weights_group_height)/2; // equally spaced from top and bottom of neuron container
+            }
+
+            WeightsSet.prototype.x_offset = function() {
+                return (this.type == 'xw') ? inner_margin : (neuron_width - inner_margin)
+            }
+
+            WeightsSet.prototype.add = function() {
+                // DRY id attribution
+                var neuron_group = d3.select("#neuron_group_L" + this.layer + "_N" + this.neuron)
+                var weights_group = neuron_group.append('g')
+                                        .attr('class','weights_group')
+                                        .attr('id', function(d, i) { return 'weights_group_L' + this.layer + "_N" + this.neuron + "_" + this.type})
+                                        .attr('transform', 'translate(' + this.x_offset + ',' + this.y_offset + ')')
+
+                // DRY me with UnitSet#add
+                weights_group.selectAll('rect')
+                    .data(d3.range(0,num_classes))
+                    .enter().append('rect')
+                        .attr('class', function(d, i) { return "weight_" + this.type + "L" + this.layer + "_N" + this.neuron + "_" + i })
+                        .attr('stroke', light_grey)
+                        .attr('fill', 'white')
+                        .attr('width', unit_width)
+                        .attr('height', unit_height)
+                        .attr('y', function(d, i) { return i*unit_height})
+            }
+
+            var HiddenState = function(layer, neuron) {
+                this.layer = layer;
+                this.neuron = neuron;
+                this.y_offset = (neuron_height - unit_height)/2;
+                this.x_offset = (neuron_width - unit_width)/2;
+            }
+
+            HiddenState.prototype.add = function() {
+                var neuron_group = d3.select("#neuron_group_L" + this.layer + "_N" + this.neuron)
+                neuron_group.append('rect')
+                    .attr('class', 'hidden_state_unit')
+                    .attr('id', 'hidden_state_unit_L' + this.layer + '_N' + this.neuron)
+                    .attr('stroke', light_grey)
                     .attr('fill', 'white')
                     .attr('width', unit_width)
                     .attr('height', unit_height)
-                    .attr('y', function(d, i) { return i*unit_height})
+            }
+
+            var TransferLineSet = function(type, layer, neuron) {
+                this.type = type;
+                this.layer = layer;
+                this.neuron = neuron;
+            }
+
+            TransferLineSet.prototype.x_offset = function() {
+                switch([this.type, this.layer]) {
+                    case ['xw', 0]:
+                        return outer_margin + unit_width;
+                        break;
+                    case ['wxh', 0]:
+                        return outer_margin + 2*unit_width + transfer_width;
+                        break;
+                    case ['hh', 0]:
+                        return outer_margin + unit_width + transfer_width + neuron_width/2 + unit_width/2;
+                        break;
+                    case ['hy', 0]:
+                        return outer_margin + transfer_width + neuron_width;
+                        break;
+                }
+            }
+
+            TransferLineSet.prototype.add = function() {
+                // add a group with x offset
+                // add a transfer line for every class in num_classes
+            }
+            
+            TransferLineSet.prototype.target = function() {
+                // find target weight group
+                var target = null;
+                switch(this.type) {
+                    case 'xw':
+                      target = d3.select('#weights_group_L' + this.layer + '_N' + this.neuron + '_xw');
+                      break;
+                    case 'hy':
+                      target = d3.select('#weights_group_L' + this.layer + '_N' + this.neuron + '_hy');
+                      break;
+
+                    // MISSING wxh, hh, wxhy
+                }
+                return target;
+            }
+
+            TransferLineSet.prototype.source = function() {
+                // find target weight group
+                var source = null;
+                switch(this.type) {
+                    case 'xw':
+                      source = d3.select('#unit_group_input_' + "L" + this.layer);
+                      break;
+                    case 'hy':
+                      source = d3.select('#unit_group_output_' + "L" + this.layer);
+                      break;
+
+                    // MISSING wxh, hh, wxhy
+                }
+                return source;
+            }
+
+            var TransferLine = function(type, layer, neuron, index) {
+                this.type = type;
+                this.layer = layer;
+                this.neuron = neuron;
+                this.index = index;
+            }
+
+            var transfer_line_function = d3.svg.line().interpolate("basis");
+
+            TransferLine.prototype.add = function(set, set_group, index) {
+                source_y = set.source.getBoundingClient().offsetTop
+                target_y = set.target.getBoundingClient().offsetTop
+                unit_offset = unit_height*index + unit_height/2
+                line_data = [
+                    [0, source_y + unit_offset],
+                    [transfer_width/4, source_y + unit_offset],
+                    [3*transfer_width/4, target_y + unit_offset],
+                    [transfer_width, target_y + unit_offset]
+                ]
+                d3.select(set_group).selectAll('path.link').append("path")
+                    .attr("d", transfer_line_function(line_data))
+                    .attr('class', 'link')
+                    .attr("stroke", light_grey)
+                    .attr("stroke-width", unit_height);  
+            }
+
+            add_network = function() {
+                // add input units
+                input_unitset_l0 = new UnitSet('input', 0)
+                input_unitset_l0.add()
+                input_unitset_l1 = new UnitSet('input', 1)
+                input_unitset_l1.add()
+
+            };
+
+            add_network();
 
             song_bars_group = svg.append("g")
                 .attr("id", "#song_bars_group")
@@ -81,7 +285,7 @@
                     .attr("y1", song_bar_yscale(d))
                     .attr("x2", width - outer_margin)
                     .attr("y2", song_bar_yscale(d))
-                    .attr("stroke", "#eee")
+                    .attr("stroke", light_grey)
             })
 
             // function plot_song(song)
