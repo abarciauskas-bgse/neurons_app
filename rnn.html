@@ -11,6 +11,11 @@
                 display: block;
                 margin: 50px auto;
             }
+
+            .memory_cell {
+                stroke: #ccc;
+                stroke-width: 2px;
+            }
         </style>
         <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
     </head>
@@ -180,12 +185,14 @@
                 this.layer = layer;
                 this.neuron = neuron;
                 this.y_offset = (neuron_height - unit_height)/2;
+                this.y_position = this.y_offset + network_y_position + (neuron == 1 ? (neuron_height + inner_margin) : 0);
                 this.x_offset = (neuron_width - unit_width)/2;
                 hidden_states.push(this)
             }
 
             HiddenState.prototype.add = function() {
                 var neuron_group = d3.select("#neuron_group_L" + this.layer + "_N" + this.neuron)
+
                 neuron_group.append('rect')
                     .attr('class', 'hidden_state_unit')
                     .attr('id', 'hidden_state_unit_L' + this.layer + '_N' + this.neuron)
@@ -193,6 +200,40 @@
                     .attr('fill', 'white')
                     .attr('width', unit_width)
                     .attr('height', unit_height)
+                    .attr('x', this.x_offset)
+                    .attr('y', this.y_offset)
+
+                // Memory cell top
+                neuron_group.append('svg:line')
+                    .attr('class', 'memory_cell memory_cell_top')
+                    .attr('x1', this.x_offset - unit_width)
+                    .attr('x2', this.x_offset + 2*unit_width)
+                    .attr('y1', this.y_offset - unit_width)
+                    .attr('y2', this.y_offset - unit_width)
+
+                // memory cell right
+                neuron_group.append('svg:line')
+                    .attr('class', 'memory_cell memory_cell_right')
+                    .attr('x1', this.x_offset + 2*unit_width)
+                    .attr('x2', this.x_offset + 2*unit_width)
+                    .attr('y1', this.y_offset - unit_width)
+                    .attr('y2', this.y_offset + 2*unit_width)
+
+                // memory cell bottom
+                neuron_group.append('svg:line')
+                    .attr('class', 'memory_cell memory_cell_bottom')
+                    .attr('x1', this.x_offset - unit_width)
+                    .attr('x2', this.x_offset + 2*unit_width)
+                    .attr('y1', this.y_offset + 2*unit_width)
+                    .attr('y2', this.y_offset + 2*unit_width)
+
+                // memory cell left
+                neuron_group.append('svg:line')
+                    .attr('class', 'memory_cell memory_cell_left')
+                    .attr('x1', this.x_offset - unit_width)
+                    .attr('x2', this.x_offset - unit_width)
+                    .attr('y1', this.y_offset - unit_width)
+                    .attr('y2', this.y_offset + 2*unit_width)                                                        
             }
 
             var tl_sets = [];
@@ -206,15 +247,21 @@
                 switch(type) {
                     case 'xw':                    
                         this.source = _.findWhere(unit_sets, {type: 'input', layer: layer})
-                        console.log(layer)
                         this.target = _.findWhere(weight_sets, {type: 'xw', layer: layer, neuron: neuron})
+                        break;
+                    case 'wxh':
+                        this.source = _.findWhere(weight_sets, {type: 'xw', layer: layer, neuron: neuron})
+                        this.target = _.findWhere(hidden_states, {layer: layer, neuron: neuron})
+                        break;
+                    case 'hh':
+                        this.source = _.findWhere(hidden_states, {layer: layer, neuron: neuron})
+                        this.target = _.findWhere(weight_sets, {type: 'hy', layer: layer, neuron: neuron})
                         break;
                     case 'hy':
                         this.source = _.findWhere(weight_sets, {type: 'hy', layer: layer, neuron: neuron})
                         this.target = _.findWhere(unit_sets, {type: 'output', layer: layer})
                         break;
                 }
-                console.log(this.source)
                 tl_sets.push(this)
             }
 
@@ -225,10 +272,12 @@
                         x_offset = (this.layer == 0) ? unit_width : (layer_width + unit_width);
                         break;
                     case 'wxh':
-                        x_offset = 2*unit_width + transfer_width;
+                        layer_wxh_offset = 2*unit_width + transfer_width + inner_margin;
+                        x_offset = (this.layer == 0) ? layer_wxh_offset : layer_width + layer_wxh_offset;
                         break;
                     case 'hh':
-                        x_offset = unit_width + transfer_width + neuron_width/2 + unit_width/2;
+                        layer_hh_offset = unit_width + transfer_width + neuron_width/2 + unit_width/2;
+                        x_offset = (this.layer == 0) ? layer_hh_offset : layer_width + layer_hh_offset;
                         break;
                     case 'hy':
                         x_offset = (this.layer == 0) ? (transfer_width + neuron_width) : (layer_width + transfer_width + neuron_width);
@@ -245,11 +294,14 @@
                            .attr('transform', 'translate(' + this.x_offset() + ',0)')
                 this.d3_group = group;
                 // add a transfer line for every class in num_classes
-                if (this.type == 'xw' || this.type == 'hy') {
+                if (this.type == 'xw' || this.type == 'hy' || this.type == 'hh') {
                     for (i = 0; i < num_classes; i++) {
                         tline = new TransferLine(this.type, this.layer, this.neuron, this, i)
                         tline.add()
                     }
+                } else if (this.type == 'wxh') {
+                    tline = new TransferLine(this.type, this.layer, this.neuron, this, 0)
+                    tline.add()
                 }
             }
 
@@ -271,10 +323,21 @@
                 source_y = this.source.y_position
                 target_y = this.target.y_position
                 unit_offset = unit_height*this.index + unit_height/2
-                full_transfer_width = transfer_width + inner_margin;
+                switch(this.type) {
+                    case 'hh': 
+                        y_start = source_y + unit_height/2;
+                        break;
+                    case 'wxh':
+                        y_start =  source_y + weights_group_height/2;
+                        break
+                    default:
+                        y_start = source_y + unit_offset;
+                        break;
+                }
+                full_transfer_width = (this.type == 'xw' || this.type == 'hy') ? (transfer_width + inner_margin) : 105;
                 line_data = [
-                    [0, source_y + unit_offset],
-                    [full_transfer_width/4, source_y + unit_offset],
+                    [0, y_start],
+                    [full_transfer_width/4, y_start],
                     [3*full_transfer_width/4, target_y + unit_offset],
                     [full_transfer_width, target_y + unit_offset]
                 ]
@@ -305,11 +368,17 @@
                             weight_set.add()
                         })
 
-                        transfer_line_types = ['xw', 'hy']
+                        hidden_state = new HiddenState(layer_i, neuron_i)
+                        hidden_state.add()
+
+                        transfer_line_types = ['xw', 'hh', 'hy']
                         transfer_line_types.forEach(function(type) {
                             tl_set = new TransferLineSet(type, layer_i, neuron_i)
                             tl_set.add()
                         });
+
+                        tl_set = new TransferLineSet('wxh', layer_i, neuron_i)
+                        tl_set.add()
 
                     }                    
                 }
