@@ -23,6 +23,7 @@
     <footer>
         <script src="//d3js.org/d3.v3.min.js"></script>
         <script src="javascripts/colorbrewer.min.js"></script>
+        <script src="javascripts/underscore.js"></script>
         <script>
             // LAYOUT
             var num_classes = 11,
@@ -49,7 +50,8 @@
                 network_y_position = neuron_y_offset + header_height,
                 weights_group_height = num_classes*unit_height,
                 unit_group_y_position = network_y_position + (2*neuron_height + inner_margin)/2 - weights_group_height/2,
-                light_grey = '#ededed'
+                light_grey = '#ededed',
+                medium_grey = '#ccc'
 
 
             var kolors = d3.scale.ordinal()
@@ -60,12 +62,16 @@
                 .attr("width", width+2)
                 .attr("height", height)
 
-            svg.append('line').attr('x1', 1024/2).attr('x2', 1024/2).attr('y1', 0).attr('y2', 768).attr('stroke', 'black')
+            //svg.append('line').attr('x1', 1024/2).attr('x2', 1024/2).attr('y1', 0).attr('y2', 768).attr('stroke', 'black')
 
+            var unit_sets = []
             var UnitSet = function(type, layer) {
+                this.class = 'UnitSet';
                 this.type = type;
                 this.layer = layer;
+                this.y_offset = unit_group_y_position;
                 this.y_position = unit_group_y_position;
+                unit_sets.push(this)
             }
 
             second_layer_visible = true;
@@ -91,7 +97,7 @@
                 group = svg.append("g")
                     .attr("class", "units_group")
                     .attr("id", "unit_group_" + this.type + "L" + this.layer)
-                    .attr("transform", "translate(" + this.x_position() + "," + this.y_position + ")")
+                    .attr("transform", "translate(" + this.x_position() + "," + this.y_offset + ")")
                 group.selectAll('rect')
                     .data(d3.range(0,num_classes))
                     .enter().append('rect')
@@ -103,19 +109,21 @@
                         .attr('y', function(d, i) { return i*unit_height})                                    
             };
 
+            var neurons = []
             Neuron = function(layer, index) {
                 this.layer = layer;
                 this.index = index;
                 this.height = neuron_height;
                 this.width = neuron_width
+                neurons.push(this)
             }
 
             Neuron.prototype.y_position = function() {
                 return (this.index == 0) ? network_y_position : (network_y_position + neuron_height + inner_margin)
             }
 
+            var neuron_x_offset = unit_width + transfer_width
             Neuron.prototype.x_position = function() {
-                var neuron_x_offset = unit_width + transfer_width
                 return (this.layer == 0) ? neuron_x_offset : (layer_width + neuron_x_offset)
             }
 
@@ -131,19 +139,23 @@
                     .attr('fill', light_grey)
             }
 
-            WeightsSet = function(type, layer, neuron) {
+            var weight_sets = []
+            WeightSet = function(type, layer, neuron) {
+                this.class = 'WeightSet';
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
                 this.y_offset = (neuron_height - weights_group_height)/2; // equally spaced from top and bottom of neuron container
+                // FIXME: Hacky - duplicates code from Neuron#y_position
+                this.y_position = this.y_offset + ((neuron == 0) ? network_y_position : (network_y_position + neuron_height + inner_margin))
+                weight_sets.push(this)
             }
 
-            WeightsSet.prototype.x_offset = function() {
-                console.log(this.type)
+            WeightSet.prototype.x_offset = function() {
                 return (this.type == 'xw') ? inner_margin : (neuron_width - inner_margin - unit_width)
             }
 
-            WeightsSet.prototype.add = function() {
+            WeightSet.prototype.add = function() {
                 // DRY id attribution
                 var neuron_group = d3.select("#neuron_group_L" + this.layer + "_N" + this.neuron)
                 var weights_group = neuron_group.append('g')
@@ -155,7 +167,7 @@
                 weights_group.selectAll('rect')
                     .data(d3.range(0,num_classes))
                     .enter().append('rect')
-                        .attr('class', "weight_" + this.type + "L" + this.layer + "_N" + this.neuron)
+                        .attr('class', "weight_" + this.type + "_L" + this.layer + "_N" + this.neuron)
                         .attr('stroke', light_grey)
                         .attr('fill', 'white')
                         .attr('width', unit_width)
@@ -163,11 +175,13 @@
                         .attr('y', function(d, i) { return i*unit_height})
             }
 
+            var hidden_states = []
             var HiddenState = function(layer, neuron) {
                 this.layer = layer;
                 this.neuron = neuron;
                 this.y_offset = (neuron_height - unit_height)/2;
                 this.x_offset = (neuron_width - unit_width)/2;
+                hidden_states.push(this)
             }
 
             HiddenState.prototype.add = function() {
@@ -181,90 +195,95 @@
                     .attr('height', unit_height)
             }
 
+            var tl_sets = [];
             var TransferLineSet = function(type, layer, neuron) {
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
+                this.d3_group = null;
+                this.source = null;
+                this.target = null;
+                switch(type) {
+                    case 'xw':                    
+                        this.source = _.findWhere(unit_sets, {type: 'input', layer: layer})
+                        console.log(layer)
+                        this.target = _.findWhere(weight_sets, {type: 'xw', layer: layer, neuron: neuron})
+                        break;
+                    case 'hy':
+                        this.source = _.findWhere(weight_sets, {type: 'hy', layer: layer, neuron: neuron})
+                        this.target = _.findWhere(unit_sets, {type: 'output', layer: layer})
+                        break;
+                }
+                console.log(this.source)
+                tl_sets.push(this)
             }
 
             TransferLineSet.prototype.x_offset = function() {
-                switch([this.type, this.layer]) {
-                    case ['xw', 0]:
-                        return unit_width;
+                var x_offset = null;
+                switch(this.type) {
+                    case 'xw':
+                        x_offset = (this.layer == 0) ? unit_width : (layer_width + unit_width);
                         break;
-                    case ['wxh', 0]:
-                        return 2*unit_width + transfer_width;
+                    case 'wxh':
+                        x_offset = 2*unit_width + transfer_width;
                         break;
-                    case ['hh', 0]:
-                        return unit_width + transfer_width + neuron_width/2 + unit_width/2;
+                    case 'hh':
+                        x_offset = unit_width + transfer_width + neuron_width/2 + unit_width/2;
                         break;
-                    case ['hy', 0]:
-                        return transfer_width + neuron_width;
+                    case 'hy':
+                        x_offset = (this.layer == 0) ? (transfer_width + neuron_width) : (layer_width + transfer_width + neuron_width);
                         break;
                 }
+                return x_offset;
             }
 
             TransferLineSet.prototype.add = function() {
                 // add a group with x offset
+                group = svg.append('g')
+                           .attr('class', 'tl_set_group')
+                           .attr('id', 'tl_set_group_L' + this.layer + '_N' + this.neuron + '_T' + this.type)
+                           .attr('transform', 'translate(' + this.x_offset() + ',0)')
+                this.d3_group = group;
                 // add a transfer line for every class in num_classes
-            }
-            
-            TransferLineSet.prototype.target = function() {
-                // find target weight group
-                var target = null;
-                switch(this.type) {
-                    case 'xw':
-                      target = d3.select('#weights_group_L' + this.layer + '_N' + this.neuron + '_xw');
-                      break;
-                    case 'hy':
-                      target = d3.select('#weights_group_L' + this.layer + '_N' + this.neuron + '_hy');
-                      break;
-
-                    // MISSING wxh, hh, wxhy
+                if (this.type == 'xw' || this.type == 'hy') {
+                    for (i = 0; i < num_classes; i++) {
+                        tline = new TransferLine(this.type, this.layer, this.neuron, this, i)
+                        tline.add()
+                    }
                 }
-                return target;
             }
 
-            TransferLineSet.prototype.source = function() {
-                // find target weight group
-                var source = null;
-                switch(this.type) {
-                    case 'xw':
-                      source = d3.select('#unit_group_input_' + "L" + this.layer);
-                      break;
-                    case 'hy':
-                      source = d3.select('#unit_group_output_' + "L" + this.layer);
-                      break;
-
-                    // MISSING wxh, hh, wxhy
-                }
-                return source;
-            }
-
-            var TransferLine = function(type, layer, neuron, index) {
+            var tlines = [];
+            var TransferLine = function(type, layer, neuron, set, index) {
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
+                this.set = set;
                 this.index = index;
+                this.source = set.source;
+                this.target = set.target;
+                tlines.push(this)
             }
 
             var transfer_line_function = d3.svg.line().interpolate("basis");
 
-            TransferLine.prototype.add = function(set, set_group, index) {
-                source_y = set.source.getBoundingClient().offsetTop
-                target_y = set.target.getBoundingClient().offsetTop
-                unit_offset = unit_height*index + unit_height/2
+            TransferLine.prototype.add = function() {
+                source_y = this.source.y_position
+                target_y = this.target.y_position
+                unit_offset = unit_height*this.index + unit_height/2
+                full_transfer_width = transfer_width + inner_margin;
                 line_data = [
                     [0, source_y + unit_offset],
-                    [transfer_width/4, source_y + unit_offset],
-                    [3*transfer_width/4, target_y + unit_offset],
-                    [transfer_width, target_y + unit_offset]
+                    [full_transfer_width/4, source_y + unit_offset],
+                    [3*full_transfer_width/4, target_y + unit_offset],
+                    [full_transfer_width, target_y + unit_offset]
                 ]
-                d3.select(set_group).selectAll('path.link').append("path")
+                this.set.d3_group.append("path")
                     .attr("d", transfer_line_function(line_data))
                     .attr('class', 'link')
-                    .attr("stroke", light_grey)
-                    .attr("stroke-width", unit_height);  
+                    .attr("stroke", medium_grey)
+                    .attr("stroke-width", 2)//unit_height/2)
+                    .attr('fill', 'none');  
             }
 
             add_network = function() {
@@ -282,12 +301,16 @@
 
                         weight_types = ['xw', 'hy']
                         weight_types.forEach(function(type) {
-                            weight_set = new WeightsSet(type, layer_i, neuron_i);
+                            weight_set = new WeightSet(type, layer_i, neuron_i);
                             weight_set.add()
-
                         })
 
-                        
+                        transfer_line_types = ['xw', 'hy']
+                        transfer_line_types.forEach(function(type) {
+                            tl_set = new TransferLineSet(type, layer_i, neuron_i)
+                            tl_set.add()
+                        });
+
                     }                    
                 }
             };
