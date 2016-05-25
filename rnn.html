@@ -19,7 +19,7 @@
             .link {
                 /*visibility: hidden;*/
                 stroke-width: 1px;
-                stroke-dasharray: 20, 2;
+                stroke-dasharray: 10, 2;
             }
             .unit {
                 fill: white;
@@ -66,7 +66,7 @@
                 transfer_width = 60,
                 song_plot_height = 100,
                 songs_bar_y_offset = height - song_plot_height,
-                song_plot_group_length = width,
+                song_plot_width = width,
                 inner_margin = 20,
                 neuron_y_offset = 20,
                 layer_width = width/2,
@@ -570,12 +570,13 @@
                 this.note_width = null;
                 this.song_input_unit_path = null;
                 this.song_target_unit_path = null;
+                this.d3_notes = null;
                 // function plot_song(song)
                 var song = this
                 d3.json(filename, function(data) {
                     song.song_data = data;
                     song.sequence_length = d3.max(data.map(function(d) { return d.seq_idx }))
-                    song.note_width = song_plot_group_length/song.sequence_length + 1 // width of each note plotted (e.g. 16th note)
+                    song.note_width = song_plot_width/song.sequence_length + 0.5 // width of each note plotted (e.g. 16th note)
 
                     // for every index in the total sequence, add an iter_note_set
                     iter_notes = _.groupBy(data, function(d) { return d.seq_idx })
@@ -585,26 +586,32 @@
                 })
             }
 
-            //Song.prototype.xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_group_length])
+            //Song.prototype.xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_width])
 
             Song.prototype.plot = function() {
                 // scale from width of plot to seq length
-                var xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_group_length]);
+                var xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_width]);
 
-                song_plot_group.selectAll('rect')
-                    .data(this.song_data).enter()
-                      .append('rect').attr('class', 'song_plot_unit')
-                      .attr('x', function(d) { return xscale(d.seq_idx) })
-                      .attr('y', function(d) { return song_plot_yscale(d.note) })
-                      .attr('height', song_plot_note_height)
-                      .attr('width', this.note_width)
-                      .attr('fill', function(d) { return kolors(d.note) })                
+                this.d3_notes = song_plot_group.selectAll('rect')
+                                    .data(this.song_data).enter()
+                                      .append('rect').attr('class', 'song_plot_unit')
+                                      .attr('x', function(d) { return xscale(d.seq_idx) + song_plot_width + 2 })
+                                      .attr('y', function(d) { return song_plot_yscale(d.note) })
+                                      .attr('height', song_plot_note_height)
+                                      .attr('width', this.note_width)
+                                      .attr('fill', function(d) { return kolors(d.note) })                
             }
 
-            var draw_song_unit_line = function(song, type, state, duration = 1000) {
+            Song.prototype.shift = function(iter_index, duration = 1000) {
+                var xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_width]);
+                this.d3_notes.transition().duration(duration)
+                     .attr('x', function(d) { return xscale(d.seq_idx) + width/2 - xscale(iter_index) })
+            }
+
+            Song.prototype.draw_song_unit_line = function(type, state, duration = 1000) {
                 // draw lines from song to input or target
-                input_note_offset = (type == 'input' ? 0 : song.note_width)
-                input_song_x = input_note_offset + song.note_width/2
+                input_note_offset = (type == 'input' ? 0 : this.note_width) + song_plot_width/2
+                input_song_x = input_note_offset + this.note_width/2
                 input_input_x = (layer1_visible ? 0 : layer_width/2) 
                     + (type == 'input' ? unit_width/2 : (layer_width - unit_width/2))
                 input_song_y = height - song_plot_height
@@ -618,9 +625,11 @@
                         [input_input_x, input_input_y]
                     ]
                     if (type == 'input') {
-                        song.song_input_unit_path.transition().duration(duration).attr('d', transfer_line_function(input_line_data))
+                        this.song_input_unit_path.transition()
+                            .duration(duration).attr('d', transfer_line_function(input_line_data))
                     } else {
-                        song.song_target_unit_path.transition().duration(duration).attr('d', transfer_line_function(input_line_data))
+                        this.song_target_unit_path.transition()
+                            .duration(duration).attr('d', transfer_line_function(input_line_data))
                     }
                     
                 } else if (state == 'init') {
@@ -636,11 +645,11 @@
                         .attr("stroke", medium_grey)
                         .attr('fill', 'none'); 
                     if (type == 'input') {
-                        song.song_input_unit_path = path
+                        this.song_input_unit_path = path
                     } else {
-                        song.song_target_unit_path = path
+                        this.song_target_unit_path = path
                     }
-                }                         
+                }                        
             }
 
             var ascender_height = 6,
@@ -661,19 +670,25 @@
                     song_plot_group.append('line')
                       .attr('class', 'song_bar_pointer')
                       .attr('id', 'song_bar_' + pointer_type + '_pointer')
-                      .attr('x1', x1)
+                      .attr('x1', x1 + song_plot_width/2)
                       .attr('y1', song_plot_height + descender_height)
-                      .attr('x2', x2)
+                      .attr('x2', x2 + song_plot_width/2)
                       .attr('y2', -ascender_height)
                       .attr('stroke', medium_grey)
                 })
                 
-                draw_song_unit_line(this, 'input', 'init')  
-                draw_song_unit_line(this, 'target', 'init')                          
+                this.draw_song_unit_line('input', 'init')  
+                this.draw_song_unit_line('target', 'init')
+
+                song_plot_group.append('rect')
+                    .attr('x',0)
+                    .attr('y', -ascender_height)
+                    .attr('width', song_plot_width/2)
+                    .attr('height', song_plot_height + ascender_height)
+                    .attr('fill', light_grey)
+                    .attr('opacity', 0.5)
             }
             var song = new Song('daft_punk-one_more_time.json')
-            // can't be called until data is loaded 
-            // song.plot()
 
             // initial state stuff
             if (!layer1_visible) {
@@ -695,7 +710,7 @@
             $('#action-button').on('click', function() {
                 if (current_state == 'entered') {
                     $('#info-text').html("The first step is to gather the training data and initialize random weights. Now we're ready to start training!")
-                    $('#action-button').html("Start training")
+                    $('#action-button').html("First step: Input song")
 
                     song.plot()
 
@@ -705,19 +720,21 @@
 
                     current_state = 'network_setup'
                 } else if (current_state == 'network_setup') {
-                    $('#info-text').html("In the first iteration, the input is the first note and the target is the second note")
+                    $('#info-text').html("In the first iteration, the input is the first note and the target is the second note.")
                     $('#action-button').html("Next Step")
                     song.init_pointers()
-                    draw_song_unit_line(song, 'input', 'grow')
-                    draw_song_unit_line(song, 'target', 'grow')
+                    song.shift(0)
+                    song.draw_song_unit_line('input', 'grow')
+                    song.draw_song_unit_line('target', 'grow')
                     //update_input_target_units(0)
                     first_iter_notes = _.find(iter_note_sets, {'iter_index': 0})
                     color_units(first_iter_notes, 'input')
                     color_units(first_iter_notes, 'target')
-
+ 
                     current_state = 'sub_iter0'
                 } else if (current_state == 'sub_iter0') {
-                    //$('#info-text').html("The input is multiplied by the current set of randomized weights")
+                    $('#info-text').html("The input is multiplied by the current set of randomized weights.")
+                    _.filter(tlines, function(line) { return line.type == 'xw' }).forEach(function(tl) { return tl.grow() })
                 }
             })
             
