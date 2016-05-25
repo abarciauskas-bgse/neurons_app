@@ -25,6 +25,37 @@
                 fill: white;
                 stroke: #ddd;
             }
+
+            marker {
+                fill: #ddd;
+            }
+
+            .flowline {
+              stroke-dasharray: 10, 2;
+              stroke-width: 2px;
+              animation: flow 2s linear infinite;
+              -webkit-animation: flow 2s linear infinite;
+            }
+
+            @keyframes flow {
+              from {
+                stroke-dashoffset: 12;
+              }
+
+              to {
+                stroke-dashoffset: 0;
+              }
+            }
+
+            @-webkit-keyframes flow {
+              from {
+                stroke-dashoffset: 12;
+              }
+
+              to {
+                stroke-dashoffset: 0;
+              }
+            }            
         </style>
         <!-- BOOTSTRAP LINKS -->
         <!-- Latest compiled and minified CSS -->
@@ -232,6 +263,7 @@
             
             WeightSet.prototype.update_weights = function() {
                 this.d3_group.selectAll('rect')
+                    .transition().duration(1000)
                     .style('fill', function(d,i) { return wkolors(_.random(-1,1)) })
             }
 
@@ -356,13 +388,13 @@
                     .attr('y1', this.hidden_state.y_offset + unit_width/2)
             }
 
-            var memory_cells_open_close = function(duration, side) {
+            var memory_cells_open_close = function(side, duration = 1000) {
                 memory_cells.forEach(function(mc) {
                     mc.open(duration, side)
                 })
-                memory_cells.forEach(function(mc) {
-                    mc.close(duration, side)
-                })
+                // memory_cells.forEach(function(mc) {
+                //     mc.close(duration, side)
+                // })
             }
 
             var tl_sets = [];
@@ -472,7 +504,7 @@
                         [0, y_start],
                         [full_transfer_width*first_break, y_start],
                         [3*full_transfer_width/4, target_y + unit_offset],
-                        [full_transfer_width, target_y + unit_offset]
+                        [full_transfer_width - 6, target_y + unit_offset]
                     ]                    
                 } else if (state == 'init') {
                     line_data = [
@@ -484,17 +516,32 @@
                 }
                 return line_data
             }
-            TransferLine.prototype.add = function() {               
+            TransferLine.prototype.add = function() {
+                // FIXME: Not DRY
+                marker_id = css_identifier('marker', this.type, this.layer, this.neuron, this.index)
+                svg.append("defs").append("marker")
+                    .attr("id", marker_id)
+                    .attr("viewBox", "0 -5 10 10")
+                    .attr("refX", 0)
+                    .attr("refY", 0)
+                    .attr("markerWidth", 6)
+                    .attr("markerHeight", 6)
+                    .attr("orient", "auto")
+                  .append("path")
+                    .attr("d", "M0,-5L10,0L0,5");                          
                 path = this.set.d3_group.append("path")
                         .attr("d", transfer_line_function(transfer_line_data(this, 'init')))
                         .attr('class', 'link')
                         .attr("stroke", medium_grey)
-                        .attr('fill', 'none');
+                        .attr('fill', 'none')
+                        .attr('visibility', 'hidden')
+                        .attr("marker-end", 'url(#' + marker_id + ')');
                 this.path = path; 
             }
 
             TransferLine.prototype.grow = function(duration = 1000, delay = 0) {
-                this.path.transition().duration(duration).delay(delay)
+                this.path.attr('visibility', 'visible')
+                  .transition().duration(duration).delay(delay)
                   .attr('d', transfer_line_function(transfer_line_data(this, 'grow')))
             }
 
@@ -622,17 +669,30 @@
                         [input_song_x, input_song_y],
                         [input_song_x, input_song_y - (input_song_y - input_input_y)/4],
                         [input_input_x, input_song_y - 3*(input_song_y - input_input_y)/4],
-                        [input_input_x, input_input_y]
+                        [input_input_x, input_input_y + 6] // plus 6 for the arrow
                     ]
                     if (type == 'input') {
                         this.song_input_unit_path.transition()
                             .duration(duration).attr('d', transfer_line_function(input_line_data))
+                            .attr('class', 'flowline')                            
                     } else {
                         this.song_target_unit_path.transition()
                             .duration(duration).attr('d', transfer_line_function(input_line_data))
+                            .attr('class', 'flowline')
                     }
                     
                 } else if (state == 'init') {
+                    marker_id = css_identifier('marker', type, null, null, null)
+                    svg.append("defs").append("marker")
+                        .attr("id", marker_id)
+                        .attr("viewBox", "0 -5 10 10")
+                        .attr("refX", 0)
+                        .attr("refY", 0)
+                        .attr("markerWidth", 6)
+                        .attr("markerHeight", 6)
+                        .attr("orient", "auto")
+                      .append("path")
+                        .attr("d", "M0,-5L10,0L0,5");                    
                     input_line_data = [
                         [input_song_x, input_song_y],
                         [input_song_x, input_song_y],
@@ -643,7 +703,8 @@
                         .attr("d", transfer_line_function(input_line_data))
                         .attr('class', 'link')
                         .attr("stroke", medium_grey)
-                        .attr('fill', 'none'); 
+                        .attr('fill', 'none')
+                        .attr("marker-end", "url(#" + marker_id + ")"); 
                     if (type == 'input') {
                         this.song_input_unit_path = path
                     } else {
@@ -702,11 +763,12 @@
                 uniq_notes.forEach(function(ui) {
                     identifier = '#' + css_identifier('unit', type, 0, null, ui)
                     input_unit = d3.select(identifier)
-                    input_unit.style('fill', kolors(ui))
+                    input_unit.transition().duration(1000).delay(1000).style('fill', kolors(ui))
                 })          
             }
 
             var current_state = 'entered'
+            var current_iter_notes = null
             $('#action-button').on('click', function() {
                 if (current_state == 'entered') {
                     $('#info-text').html("The first step is to gather the training data and initialize random weights. Now we're ready to start training!")
@@ -726,15 +788,54 @@
                     song.shift(0)
                     song.draw_song_unit_line('input', 'grow')
                     song.draw_song_unit_line('target', 'grow')
-                    //update_input_target_units(0)
-                    first_iter_notes = _.find(iter_note_sets, {'iter_index': 0})
-                    color_units(first_iter_notes, 'input')
-                    color_units(first_iter_notes, 'target')
+
+                    current_iter_notes = _.find(iter_note_sets, {'iter_index': 0})
+                    color_units(current_iter_notes, 'input')
+                    color_units(current_iter_notes, 'target')
  
                     current_state = 'sub_iter0'
                 } else if (current_state == 'sub_iter0') {
-                    $('#info-text').html("The input is multiplied by the current set of randomized weights.")
-                    _.filter(tlines, function(line) { return line.type == 'xw' }).forEach(function(tl) { return tl.grow() })
+                    $('#info-text').html("The input is multiplied by the current set of weights.")
+                    xw_lines = _.filter(tlines, function(line) { return line.type == 'xw' })
+                    xw_lines.forEach(function(tl) { return tl.grow() })
+
+                    notes = _.map(current_iter_notes.inputs, function(n) { return n.note })
+                    current_iter_lines = _.filter(xw_lines, function(line) { return _.contains(notes, line.index) })
+                    current_iter_lines.forEach(function(line) {
+                        line.path.transition().duration(1000).delay(1000)
+                            .attr('stroke', kolors(line.index))
+                            .attr('class', 'flowline')
+                        d3.selectAll('#' + css_identifier('marker', line.type, line.layer, line.neuron, line.index))
+                            .transition().duration(1000).delay(1000)
+                            .style('fill', kolors(line.index))
+                    })
+                    current_state = 'sub_iter1'
+                } else if (current_state == 'sub_iter1') {
+                    $('#info-text').html("The weighted sum is then passed to the 'memory' cell. This is the <b>magic of a recurrent neural network</b>")
+                    wxh_lines = _.filter(tlines, function(line) { return line.type == 'wxh' })
+                    wxh_lines.forEach(function(tl) {
+                        memory_cells_open_close('left')
+                        tl.grow()
+                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
+                    })
+                    current_state = 'sub_iter2'
+                } else if (current_state == 'sub_iter2') {
+                    $('#info-text').html("The memory cell stores the information in the <b>hidden state</b> which can be recalled on the next iteration.")
+                    hh_lines = _.filter(tlines, function(line) { return line.type == 'hh' })
+                    hh_lines.forEach(function(tl) {
+                        memory_cells_open_close('right')
+                        tl.grow()
+                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
+                    })
+                    current_state = 'sub_iter3'
+                } else if (current_state == 'sub_iter3') {
+                    $('#info-text').html("Finally, the hidden state is multiplied by an output set of weights, which formulates the probability of each note following the current note.")
+                    hy_lines = _.filter(tlines, function(line) { return line.type == 'hy' })
+                    hy_lines.forEach(function(tl) {
+                        tl.grow()
+                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
+                    })
+                    current_state = 'sub_iter4'                    
                 }
             })
             
