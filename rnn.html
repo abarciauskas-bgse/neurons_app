@@ -9,34 +9,58 @@
             #container {
                 width: 1024px;
                 display: block;
-                margin: 50px auto;
+                margin: 40px auto;
             }
 
             .memory_cell {
-                stroke: #ccc;
-                stroke-width: 2px;
+                stroke: #ddd;
+                stroke-width: 1px;
+            }
+            .link {
+                /*visibility: hidden;*/
+                stroke-width: 1px;
+                stroke-dasharray: 20, 2;
+            }
+            .unit {
+                fill: white;
+                stroke: #ddd;
             }
         </style>
+        <!-- BOOTSTRAP LINKS -->
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <!-- jQuery library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+        <!-- Latest compiled JavaScript -->
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>         
         <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
     </head>
 
 
     <body>
-        <div id="container"></div>
+        <div id="container">
+            <div class="panel panel-default">
+              <div class="panel-body">                  
+                  <span id="info-text">Welcome to a <b>recurrent neural network!</b> We're going to train this network to create new music.</span>
+                  &nbsp;
+                  <button type="button" class="btn btn-success btn-sm" id="action-button">Setup Network</button>
+              </div>
+            </div>            
+        </div>
     </body>
 
     <footer>
         <script src="//d3js.org/d3.v3.min.js"></script>
         <script src="javascripts/colorbrewer.min.js"></script>
-        <script src="javascripts/underscore.js"></script>
+        <script src="javascripts/underscore.js"></script>       
         <script>
             // LAYOUT
             var num_classes = 11,
                 num_neurons = 2,
                 num_layers = 2,
                 width = 1024,
-                height = 768, // height of whole container
-                header_height = 100,
+                height = 668, // height of whole container
+                header_height = 0,
                 unit_width = 20,
                 unit_height = unit_width,
                 transfer_width = 60,
@@ -44,7 +68,7 @@
                 songs_bar_y_offset = height - song_plot_height,
                 song_plot_group_length = width,
                 inner_margin = 20,
-                neuron_y_offset = 30,
+                neuron_y_offset = 20,
                 layer_width = width/2,
                 neuron_width = (layer_width - 3*unit_width - 2*transfer_width - inner_margin),
                 neuron_height = (height // height dynamically defined by other factors
@@ -54,29 +78,36 @@
                     - song_plot_height)/num_neurons, // divide by number of neurons
                 network_y_position = neuron_y_offset + header_height,
                 weight_set_height = num_classes*unit_height,
-                unit_group_y_position = network_y_position + (2*neuron_height + inner_margin)/2 - weight_set_height/2,
+                unit_set_y_position = network_y_position + (2*neuron_height + inner_margin)/2 - weight_set_height/2,
                 light_grey = '#ededed',
                 medium_grey = '#ccc',
-                song_plot_note_height = song_plot_height/num_classes
+                song_plot_note_height = song_plot_height/num_classes,
+                layer1_visible = false
 
 
             var kolors = d3.scale.ordinal()
                 .domain(d3.range(0,num_classes))
                 .range(colorbrewer.Spectral[num_classes]);
 
+            var wkolors = d3.scale.linear()
+                .domain(d3.range(-1,1))
+                .range(colorbrewer.Greys[9]);
+
             var svg = d3.select("#container").append("svg")
                 .attr("width", width+2)
                 .attr("height", height)
 
             //svg.append('line').attr('x1', 1024/2).attr('x2', 1024/2).attr('y1', 0).attr('y2', 768).attr('stroke', 'black')
+            layer0 = svg.append('g').attr('id', 'layer0')
+            layer1 = svg.append('g').attr('id', 'layer1')
 
             var unit_sets = []
             var UnitSet = function(type, layer) {
                 this.class = 'UnitSet';
                 this.type = type;
                 this.layer = layer;
-                this.y_offset = unit_group_y_position;
-                this.y_position = unit_group_y_position;
+                this.y_offset = unit_set_y_position;
+                this.y_position = unit_set_y_position;
                 unit_sets.push(this)
             }
 
@@ -106,9 +137,13 @@
                     + (neuron == null ? '' : '_N' + neuron)
                     + (index == null ? '' : '_i' + index)
             }
+
+            var layer_group = function(object) {
+                return object.layer == 0 ? layer0 : layer1
+            }
             UnitSet.prototype.add = function() {
-                group = svg.append("g")
-                    .attr("class", "units_group")
+                group = layer_group(this).append("g")
+                    .attr("class", "unit_set")
                     .attr("id", css_identifier('unit_set', this.type, this.layer, null, null))
                     .attr("transform", "translate(" + this.x_position() + "," + this.y_offset + ")")
                 var layer = this.layer
@@ -117,10 +152,8 @@
                     .data(d3.range(0,num_classes))
                     .enter().append('rect')
                         // FIXME: may want a function for classes as well?
-                        .attr('class', function(d, i) { return css_identifier('unit', type, layer, null, null) })
+                        .attr('class', function(d, i) { return 'unit ' + css_identifier('unit', type, layer, null, null) })
                         .attr('id', function(d, i) { return css_identifier('unit', type, layer, null, i) })
-                        .attr('stroke', light_grey)
-                        .attr('fill', 'white')
                         .attr('width', unit_width)
                         .attr('height', unit_height)
                         .attr('y', function(d, i) { return i*unit_height})                    
@@ -145,7 +178,7 @@
             }
 
             Neuron.prototype.add = function() {
-                group = svg.append("g")
+                group = layer_group(this).append("g")
                     .attr("class", "neuron")
                     .attr("id", css_identifier("neuron", null, this.layer, this.index, null))
                     .attr("transform", "translate(" + this.x_position() + "," + this.y_position() + ")") 
@@ -162,6 +195,7 @@
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
+                this.d3_group = null;
                 this.y_offset = (neuron_height - weight_set_height)/2; // equally spaced from top and bottom of neuron container
                 // FIXME: Hacky - duplicates code from Neuron#y_position
                 this.y_position = this.y_offset + ((neuron == 0) ? network_y_position : (network_y_position + neuron_height + inner_margin))
@@ -179,6 +213,7 @@
                                         .attr('class','weight_set')
                                         .attr('id', css_identifier('weight_set', this.type, this.layer, this.neuron, 0))
                                         .attr('transform', 'translate(' + this.x_offset() + ',' + this.y_offset + ')')
+                this.d3_group = weight_set
                 var layer = this.layer
                 var type = this.type
                 var neuron = this.neuron
@@ -186,13 +221,18 @@
                 weight_set.selectAll('rect')
                     .data(d3.range(0,num_classes))
                     .enter().append('rect')
-                        .attr('class', function(d, i) { return css_identifier('weight', type, layer, neuron, null) })
+                        .attr('class', 'unit '
+                            + function(d, i) { return css_identifier('weight', type, layer, neuron, null) })
                         .attr('id', function(d, i) { return css_identifier('weight', type, layer, neuron, i) })
-                        .attr('stroke', light_grey)
-                        .attr('fill', 'white')
                         .attr('width', unit_width)
                         .attr('height', unit_height)
                         .attr('y', function(d, i) { return i*unit_height})
+            }
+
+            
+            WeightSet.prototype.update_weights = function() {
+                this.d3_group.selectAll('rect')
+                    .style('fill', function(d,i) { return wkolors(_.random(-1,1)) })
             }
 
             var hidden_states = []
@@ -209,10 +249,8 @@
                 var neuron = d3.select("#neuron_L" + this.layer + "_N" + this.neuron)
 
                 neuron.append('rect')
-                    .attr('class', 'hidden_state')
+                    .attr('class', 'hidden_state unit')
                     .attr('id', css_identifier('hidden_state', null, this.layer, this.neuron, null))
-                    .attr('stroke', light_grey)
-                    .attr('fill', 'white')
                     .attr('width', unit_width)
                     .attr('height', unit_height)
                     .attr('x', this.x_offset)
@@ -379,7 +417,7 @@
 
             TransferLineSet.prototype.add = function() {
                 // add a group with x offset
-                group = svg.append('g')
+                group = layer_group(this).append('g')
                            .attr('class', 'tl_set')
                            .attr('id', css_identifier('tl_set', this.type, this.layer, this.neuron, null))
                            .attr('transform', 'translate(' + this.x_offset() + ',0)')
@@ -405,16 +443,18 @@
                 this.index = index;
                 this.source = set.source;
                 this.target = set.target;
+                this.path = null;
                 tlines.push(this)
             }
 
             var transfer_line_function = d3.svg.line().interpolate("basis");
 
-            TransferLine.prototype.add = function() {
-                source_y = this.source.y_position
-                target_y = this.target.y_position
-                unit_offset = unit_height*this.index + unit_height/2
-                switch(this.type) {
+
+            var transfer_line_data = function(transfer_line, state) {
+                source_y = transfer_line.source.y_position
+                target_y = transfer_line.target.y_position
+                unit_offset = unit_height*transfer_line.index + unit_height/2
+                switch(transfer_line.type) {
                     case 'hh': 
                         y_start = source_y + unit_height/2;
                         break;
@@ -425,20 +465,37 @@
                         y_start = source_y + unit_offset;
                         break;
                 }
-                full_transfer_width = (this.type == 'xw' || this.type == 'hy') ? (transfer_width + inner_margin) : 105;
-                first_break = (this.type == 'xw') ? 1/4 : 2/3
-                line_data = [
-                    [0, y_start],
-                    [full_transfer_width*first_break, y_start],
-                    [3*full_transfer_width/4, target_y + unit_offset],
-                    [full_transfer_width, target_y + unit_offset]
-                ]
-                this.set.d3_group.append("path")
-                    .attr("d", transfer_line_function(line_data))
-                    .attr('class', 'link')
-                    .attr("stroke", medium_grey)
-                    .attr("stroke-width", 2)//unit_height/2)
-                    .attr('fill', 'none');  
+                full_transfer_width = (transfer_line.type == 'xw' || transfer_line.type == 'hy') ? (transfer_width + inner_margin) : 105;
+                first_break = (transfer_line.type == 'xw') ? 1/4 : 2/3
+                if (state == 'grow') {
+                    line_data = [
+                        [0, y_start],
+                        [full_transfer_width*first_break, y_start],
+                        [3*full_transfer_width/4, target_y + unit_offset],
+                        [full_transfer_width, target_y + unit_offset]
+                    ]                    
+                } else if (state == 'init') {
+                    line_data = [
+                        [0, y_start],
+                        [0, y_start],
+                        [0, y_start],
+                        [0, y_start]
+                    ]                     
+                }
+                return line_data
+            }
+            TransferLine.prototype.add = function() {               
+                path = this.set.d3_group.append("path")
+                        .attr("d", transfer_line_function(transfer_line_data(this, 'init')))
+                        .attr('class', 'link')
+                        .attr("stroke", medium_grey)
+                        .attr('fill', 'none');
+                this.path = path; 
+            }
+
+            TransferLine.prototype.grow = function(duration = 1000, delay = 0) {
+                this.path.transition().duration(duration).delay(delay)
+                  .attr('d', transfer_line_function(transfer_line_data(this, 'grow')))
             }
 
             add_network = function() {
@@ -511,7 +568,8 @@
                 this.song_data = null;
                 this.sequence_length = null;
                 this.note_width = null;
-
+                this.song_input_unit_path = null;
+                this.song_target_unit_path = null;
                 // function plot_song(song)
                 var song = this
                 d3.json(filename, function(data) {
@@ -543,6 +601,48 @@
                       .attr('fill', function(d) { return kolors(d.note) })                
             }
 
+            var draw_song_unit_line = function(song, type, state, duration = 1000) {
+                // draw lines from song to input or target
+                input_note_offset = (type == 'input' ? 0 : song.note_width)
+                input_song_x = input_note_offset + song.note_width/2
+                input_input_x = (layer1_visible ? 0 : layer_width/2) 
+                    + (type == 'input' ? unit_width/2 : (layer_width - unit_width/2))
+                input_song_y = height - song_plot_height
+                input_input_y = unit_set_y_position + weight_set_height
+
+                if (state == 'grow') {
+                    input_line_data = [
+                        [input_song_x, input_song_y],
+                        [input_song_x, input_song_y - (input_song_y - input_input_y)/4],
+                        [input_input_x, input_song_y - 3*(input_song_y - input_input_y)/4],
+                        [input_input_x, input_input_y]
+                    ]
+                    if (type == 'input') {
+                        song.song_input_unit_path.transition().duration(duration).attr('d', transfer_line_function(input_line_data))
+                    } else {
+                        song.song_target_unit_path.transition().duration(duration).attr('d', transfer_line_function(input_line_data))
+                    }
+                    
+                } else if (state == 'init') {
+                    input_line_data = [
+                        [input_song_x, input_song_y],
+                        [input_song_x, input_song_y],
+                        [input_song_x, input_song_y],
+                        [input_song_x, input_song_y]
+                    ]
+                    path = svg.append('path')
+                        .attr("d", transfer_line_function(input_line_data))
+                        .attr('class', 'link')
+                        .attr("stroke", medium_grey)
+                        .attr('fill', 'none'); 
+                    if (type == 'input') {
+                        song.song_input_unit_path = path
+                    } else {
+                        song.song_target_unit_path = path
+                    }
+                }                         
+            }
+
             var ascender_height = 6,
                 descender_height = 1
             Song.prototype.init_pointers = function() {
@@ -565,51 +665,62 @@
                       .attr('y1', song_plot_height + descender_height)
                       .attr('x2', x2)
                       .attr('y2', -ascender_height)
-                      .attr('stroke-width', 2)
                       .attr('stroke', medium_grey)
                 })
                 
-                // draw lines from song to input or target
-                input_note_offset = 0
-                input_song_x = input_note_offset + this.note_width/2
-                input_input_x = 0 + unit_width/2
-                input_song_y = height - song_plot_height
-                input_input_y = unit_group_y_position + weight_set_height
-                input_line_data = [
-                    [input_song_x, input_song_y],
-                    [input_song_x, input_song_y - (input_song_y - input_input_y)/4],
-                    [input_input_x, input_song_y - 3*(input_song_y - input_input_y)/4],
-                    [input_input_x, input_input_y]
-                ]
-                svg.append('path')
-                    .attr("d", transfer_line_function(input_line_data))
-                    .attr('class', 'link')
-                    .attr("stroke", light_grey)
-                    .attr("stroke-width", 1)
-                    .attr('fill', 'none'); 
-
-                target_note_offset = input_note_offset + this.note_width
-                target_song_x = target_note_offset + this.note_width/2
-                target_target_x = layer_width - unit_width/2
-                target_song_y = input_song_y
-                target_target_y = unit_group_y_position + weight_set_height
-                target_line_data = [
-                    [target_song_x, target_song_y],
-                    [target_song_x, target_song_y - (target_song_y - target_target_y)/4],
-                    [target_target_x, target_song_y - 3*(target_song_y - target_target_y)/4],
-                    [target_target_x, target_target_y]
-                ]
-                svg.append('path')
-                    .attr("d", transfer_line_function(target_line_data))
-                    .attr('class', 'link')
-                    .attr("stroke", light_grey)
-                    .attr("stroke-width", 1)
-                    .attr('fill', 'none');                                
+                draw_song_unit_line(this, 'input', 'init')  
+                draw_song_unit_line(this, 'target', 'init')                          
             }
             var song = new Song('daft_punk-one_more_time.json')
             // can't be called until data is loaded 
             // song.plot()
 
+            // initial state stuff
+            if (!layer1_visible) {
+                d3.select('#layer1').selectAll('*').style('visibility', 'hidden')
+                d3.select('#layer0').attr('transform', 'translate(' + layer_width/2 + ',0)')
+            }
+
+            var color_units = function(iter_notes, type) {
+                notes = (type == 'input') ? iter_notes.inputs : iter_notes.targets
+                uniq_notes = _.uniq(_.map(notes, function(n) { return n.note}))
+                uniq_notes.forEach(function(ui) {
+                    identifier = '#' + css_identifier('unit', type, 0, null, ui)
+                    input_unit = d3.select(identifier)
+                    input_unit.style('fill', kolors(ui))
+                })          
+            }
+
+            var current_state = 'entered'
+            $('#action-button').on('click', function() {
+                if (current_state == 'entered') {
+                    $('#info-text').html("The first step is to gather the training data and initialize random weights. Now we're ready to start training!")
+                    $('#action-button').html("Start training")
+
+                    song.plot()
+
+                    weight_sets.forEach(function(set) {
+                        set.update_weights();
+                    })
+
+                    current_state = 'network_setup'
+                } else if (current_state == 'network_setup') {
+                    $('#info-text').html("In the first iteration, the input is the first note and the target is the second note")
+                    $('#action-button').html("Next Step")
+                    song.init_pointers()
+                    draw_song_unit_line(song, 'input', 'grow')
+                    draw_song_unit_line(song, 'target', 'grow')
+                    //update_input_target_units(0)
+                    first_iter_notes = _.find(iter_note_sets, {'iter_index': 0})
+                    color_units(first_iter_notes, 'input')
+                    color_units(first_iter_notes, 'target')
+
+                    current_state = 'sub_iter0'
+                } else if (current_state == 'sub_iter0') {
+                    //$('#info-text').html("The input is multiplied by the current set of randomized weights")
+                }
+            })
+            
         </script>
     </footer>
 </html>
