@@ -20,6 +20,7 @@
                 /*visibility: hidden;*/
                 stroke-width: 1px;
                 stroke-dasharray: 10, 2;
+                stroke: #ddd;
             }
             .unit {
                 fill: white;
@@ -28,6 +29,7 @@
 
             marker {
                 fill: #ddd;
+                stroke-width: 0;
             }
 
             .flowline {
@@ -55,7 +57,12 @@
               to {
                 stroke-dashoffset: 0;
               }
-            }            
+            }
+            .shadow {
+                -webkit-svg-shadow: 0 0 7px #53BE12;
+                /*-webkit-filter: drop-shadow( -2px -2px 2px #666 );
+                        filter: drop-shadow( -2px -2px 2px #666 ); /* Same syntax as box-shadow */
+            }
         </style>
         <!-- BOOTSTRAP LINKS -->
         <!-- Latest compiled and minified CSS -->
@@ -77,7 +84,7 @@
                   <button type="button" class="btn btn-success btn-sm" id="action-button">Setup Network</button>
               </div>
             </div>            
-        </div>
+        </div>   
     </body>
 
     <footer>
@@ -113,7 +120,8 @@
                 light_grey = '#ededed',
                 medium_grey = '#ccc',
                 song_plot_note_height = song_plot_height/num_classes,
-                layer1_visible = false
+                layer1_visible = false,
+                default_transition_duration = 200
 
 
             var kolors = d3.scale.ordinal()
@@ -121,10 +129,16 @@
                 .range(colorbrewer.Spectral[num_classes]);
 
             var wkolors = d3.scale.linear()
-                .domain(d3.range(-1,1))
-                .range(colorbrewer.Greys[9]);
+                .domain([-1,0,1])
+                .range(colorbrewer.Greys[4]);
 
-            var svg = d3.select("#container").append("svg")
+            // FIX ME: need a better wait to fix the domain of this thing.
+            // AND just colors in general
+            var hskolors = d3.scale.linear()
+                .domain([-1,0,1])
+                .range(colorbrewer.Blues[5]);
+
+            var svg = d3.select("#container").append("svg")           
                 .attr("width", width+2)
                 .attr("height", height)
 
@@ -139,6 +153,7 @@
                 this.layer = layer;
                 this.y_offset = unit_set_y_position;
                 this.y_position = unit_set_y_position;
+                this.values = _.map(_.range(0,num_classes), function(i) { return i*0 })
                 unit_sets.push(this)
             }
 
@@ -179,15 +194,15 @@
                     .attr("transform", "translate(" + this.x_position() + "," + this.y_offset + ")")
                 var layer = this.layer
                 var type = this.type
+                this.d3_group = group
                 group.selectAll('rect')
                     .data(d3.range(0,num_classes))
                     .enter().append('rect')
-                        // FIXME: may want a function for classes as well?
-                        .attr('class', function(d, i) { return 'unit ' + css_identifier('unit', type, layer, null, null) })
+                        .attr('class', function(d, i) { return 'unit ' + css_identifier('unit', type, null, null, null) })
                         .attr('id', function(d, i) { return css_identifier('unit', type, layer, null, i) })
                         .attr('width', unit_width)
                         .attr('height', unit_height)
-                        .attr('y', function(d, i) { return i*unit_height})                    
+                        .attr('y', function(d, i) { return i*unit_height})
             };
 
             var neurons = []
@@ -217,7 +232,8 @@
                     .attr('class', 'neuron_container')
                     .attr('width', neuron_width)
                     .attr('height', neuron_height)
-                    .attr('fill', light_grey)
+                    .attr('fill', 'white')
+                    .attr('stroke', medium_grey)
             }
 
             var weight_sets = []
@@ -226,7 +242,6 @@
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
-                this.d3_group = null;
                 this.y_offset = (neuron_height - weight_set_height)/2; // equally spaced from top and bottom of neuron container
                 // FIXME: Hacky - duplicates code from Neuron#y_position
                 this.y_position = this.y_offset + ((neuron == 0) ? network_y_position : (network_y_position + neuron_height + inner_margin))
@@ -238,7 +253,6 @@
             }
 
             WeightSet.prototype.add = function() {
-                // DRY id attribution
                 var neuron = d3.select("#neuron_L" + this.layer + "_N" + this.neuron)
                 var weight_set = neuron.append('g')
                                         .attr('class','weight_set')
@@ -262,9 +276,11 @@
 
             
             WeightSet.prototype.update_weights = function() {
+                random_weights = _.map(_.range(0,num_classes), function() { return Math.random()*_.random(-1,1)})
+                this.weights = random_weights
                 this.d3_group.selectAll('rect')
-                    .transition().duration(1000)
-                    .style('fill', function(d,i) { return wkolors(_.random(-1,1)) })
+                    .transition().duration(default_transition_duration)
+                    .style('fill', function(d,i) { return wkolors(random_weights[i]) })
             }
 
             var hidden_states = []
@@ -274,22 +290,56 @@
                 this.y_offset = (neuron_height - unit_height)/2;
                 this.y_position = this.y_offset + network_y_position + (neuron == 1 ? (neuron_height + inner_margin) : 0);
                 this.x_offset = (neuron_width - unit_width)/2;
+                this.value = 0;
+                this.input_weight_set = _.find(weight_sets, {layer: this.layer, neuron: this.neuron, type: 'xw'})
+                this.output_weight_set = _.find(weight_sets, {layer: this.layer, neuron: this.neuron, type: 'hy'})                
                 hidden_states.push(this)
             }
 
             HiddenState.prototype.add = function() {
                 var neuron = d3.select("#neuron_L" + this.layer + "_N" + this.neuron)
 
-                neuron.append('rect')
-                    .attr('class', 'hidden_state unit')
-                    .attr('id', css_identifier('hidden_state', null, this.layer, this.neuron, null))
-                    .attr('width', unit_width)
-                    .attr('height', unit_height)
-                    .attr('x', this.x_offset)
-                    .attr('y', this.y_offset)
+                this.d3_unit = neuron.append('rect')
+                                .attr('class', 'hidden_state unit')
+                                .attr('id', css_identifier('hidden_state', null, this.layer, this.neuron, null))
+                                .attr('width', unit_width)
+                                .attr('height', unit_height)
+                                .attr('x', this.x_offset)
+                                .attr('y', this.y_offset)
 
                 memory_cell = new MemoryCell(this, neuron);                                        
                 memory_cell.add()
+            }
+
+            var vector_multiply = function(v1, v2) {
+                // ASSERT EQUAL LENGTH
+                sum = 0
+                for (i = 0; i < v1.length; i ++) { sum += v1[i]*v2[i] }
+                return sum
+            }
+            var notes_to_vector = function(notes) {
+                return _.map(_.range(0, num_classes), function(i) {
+                    return _.contains(notes, i) ? 1 : 0
+                })
+            }
+
+            HiddenState.prototype.update = function() {
+                weights = this.input_weight_set.weights
+
+                notes = notes_to_vector(current_iter_notes.inputs)
+                update_value = Math.tanh(vector_multiply(notes, weights))
+
+                this.value = update_value
+                this.d3_unit.transition()
+                  .duration(default_transition_duration)
+                  .style('fill', hskolors(this.value))
+                outlines = _.where(tlines, {source: this})
+
+                outlines.forEach(function(line) {
+                    line.path.style('stroke', hskolors(update_value))
+                    line.marker.style('fill', hskolors(update_value))
+                })
+
             }
 
             memory_cells =[]
@@ -388,7 +438,7 @@
                     .attr('y1', this.hidden_state.y_offset + unit_width/2)
             }
 
-            var memory_cells_open_close = function(side, duration = 1000) {
+            var memory_cells_open_close = function(side, duration = default_transition_duration) {
                 memory_cells.forEach(function(mc) {
                     mc.open(duration, side)
                 })
@@ -402,9 +452,7 @@
                 this.type = type;
                 this.layer = layer;
                 this.neuron = neuron;
-                this.d3_group = null;
-                this.source = null;
-                this.target = null;
+
                 switch(type) {
                     case 'xw':    
                         this.source = _.findWhere(unit_sets, {type: 'input', layer: layer})
@@ -455,15 +503,15 @@
                            .attr('transform', 'translate(' + this.x_offset() + ',0)')
                 this.d3_group = group;
                 // add a transfer line for every class in num_classes
-                if (this.type == 'xw' || this.type == 'hy' || this.type == 'hh') {
+                //if (this.type == 'xw' || this.type == 'hy' || this.type == 'hh') {
                     for (i = 0; i < num_classes; i++) {
                         tline = new TransferLine(this.type, this.layer, this.neuron, this, i)
                         tline.add()
                     }
-                } else if (this.type == 'wxh') {
-                    tline = new TransferLine(this.type, this.layer, this.neuron, this, 0)
-                    tline.add()
-                }
+                // } else if (this.type == 'wxh') {
+                //     tline = new TransferLine(this.type, this.layer, this.neuron, this, 0)
+                //     tline.add()
+                // }
             }
 
             var tlines = [];
@@ -475,36 +523,29 @@
                 this.index = index;
                 this.source = set.source;
                 this.target = set.target;
-                this.path = null;
                 tlines.push(this)
             }
 
             var transfer_line_function = d3.svg.line().interpolate("basis");
 
-
             var transfer_line_data = function(transfer_line, state) {
+                unit_offset = unit_height*transfer_line.index + unit_height/2
+
                 source_y = transfer_line.source.y_position
                 target_y = transfer_line.target.y_position
-                unit_offset = unit_height*transfer_line.index + unit_height/2
-                switch(transfer_line.type) {
-                    case 'hh': 
-                        y_start = source_y + unit_height/2;
-                        break;
-                    case 'wxh':
-                        y_start =  source_y + weight_set_height/2;
-                        break
-                    default:
-                        y_start = source_y + unit_offset;
-                        break;
-                }
+
+                target_y = transfer_line.type == 'wxh' ? target_y + unit_height/2 : target_y + unit_offset
+                y_start = source_y + (transfer_line.type == 'hh' ? unit_height/2 : unit_offset)
+                // FIXME: The 105 is pixel-fixing
                 full_transfer_width = (transfer_line.type == 'xw' || transfer_line.type == 'hy') ? (transfer_width + inner_margin) : 105;
-                first_break = (transfer_line.type == 'xw') ? 1/4 : 2/3
+                first_break = 1/4
+
                 if (state == 'grow') {
                     line_data = [
                         [0, y_start],
                         [full_transfer_width*first_break, y_start],
-                        [3*full_transfer_width/4, target_y + unit_offset],
-                        [full_transfer_width - 6, target_y + unit_offset]
+                        [full_transfer_width*(1-first_break), target_y],
+                        [full_transfer_width - 6, target_y]
                     ]                    
                 } else if (state == 'init') {
                     line_data = [
@@ -519,16 +560,17 @@
             TransferLine.prototype.add = function() {
                 // FIXME: Not DRY
                 marker_id = css_identifier('marker', this.type, this.layer, this.neuron, this.index)
-                svg.append("defs").append("marker")
+                marker = svg.append("defs").append("marker")
                     .attr("id", marker_id)
                     .attr("viewBox", "0 -5 10 10")
-                    .attr("refX", 0)
+                    .attr("refX", 2)
                     .attr("refY", 0)
                     .attr("markerWidth", 6)
                     .attr("markerHeight", 6)
                     .attr("orient", "auto")
                   .append("path")
-                    .attr("d", "M0,-5L10,0L0,5");                          
+                    .attr("d", "M0,-5L10,0L0,5");
+                this.marker = marker                       
                 path = this.set.d3_group.append("path")
                         .attr("d", transfer_line_function(transfer_line_data(this, 'init')))
                         .attr('class', 'link')
@@ -539,7 +581,7 @@
                 this.path = path; 
             }
 
-            TransferLine.prototype.grow = function(duration = 1000, delay = 0) {
+            TransferLine.prototype.grow = function(duration = default_transition_duration, delay = 0) {
                 this.path.attr('visibility', 'visible')
                   .transition().duration(duration).delay(delay)
                   .attr('d', transfer_line_function(transfer_line_data(this, 'grow')))
@@ -567,14 +609,11 @@
                         hidden_state = new HiddenState(layer_i, neuron_i)
                         hidden_state.add()
 
-                        transfer_line_types = ['xw', 'hh', 'hy']
+                        transfer_line_types = ['xw', 'hh', 'hy', 'wxh']
                         transfer_line_types.forEach(function(type) {
                             tl_set = new TransferLineSet(type, layer_i, neuron_i)
                             tl_set.add()
                         });
-
-                        tl_set = new TransferLineSet('wxh', layer_i, neuron_i)
-                        tl_set.add()
 
                     }    
                 }
@@ -604,8 +643,8 @@
             var iter_note_sets = []
             var IterNoteSet = function(song, inputs, targets, iter_index) {
                 this.song = song;
-                this.inputs = _.map(inputs, function(note) { return _.pick(note, 'note')});
-                this.targets = _.map(targets, function(note) { return _.pick(note, 'note')});
+                this.inputs = inputs;
+                this.targets = targets;
                 this.iter_index = iter_index;
                 iter_note_sets.push(this)
             }
@@ -621,14 +660,19 @@
                 // function plot_song(song)
                 var song = this
                 d3.json(filename, function(data) {
-                    song.song_data = data;
-                    song.sequence_length = d3.max(data.map(function(d) { return d.seq_idx }))
+                    song.raw_song_data = data;
+                    song.song_data = []
+                    data.forEach(function(notes, i) {
+                        notes.forEach(function(note){
+                            song.song_data.push({note: note, seq_idx: i})
+                        })
+                    })
+                    song.sequence_length = data.length;
                     song.note_width = song_plot_width/song.sequence_length + 0.5 // width of each note plotted (e.g. 16th note)
 
                     // for every index in the total sequence, add an iter_note_set
-                    iter_notes = _.groupBy(data, function(d) { return d.seq_idx })
-                    _.range(0, song.sequence_length).forEach(function(iter_index) {
-                        iter_note_set = new IterNoteSet(song, iter_notes[iter_index], iter_notes[iter_index+1], iter_index)
+                    data.forEach(function(notes, i) {
+                        iter_note_set = new IterNoteSet(song, notes, data[i+1], i)
                     })                    
                 })
             }
@@ -642,20 +686,20 @@
                 this.d3_notes = song_plot_group.selectAll('rect')
                                     .data(this.song_data).enter()
                                       .append('rect').attr('class', 'song_plot_unit')
-                                      .attr('x', function(d) { return xscale(d.seq_idx) + song_plot_width + 2 })
+                                      .attr('x', function(d,i) { return xscale(d.seq_idx) + song_plot_width + 2 })
                                       .attr('y', function(d) { return song_plot_yscale(d.note) })
                                       .attr('height', song_plot_note_height)
                                       .attr('width', this.note_width)
                                       .attr('fill', function(d) { return kolors(d.note) })                
             }
 
-            Song.prototype.shift = function(iter_index, duration = 1000) {
+            Song.prototype.shift = function(iter_index, duration = default_transition_duration) {
                 var xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_width]);
                 this.d3_notes.transition().duration(duration)
                      .attr('x', function(d) { return xscale(d.seq_idx) + width/2 - xscale(iter_index) })
             }
 
-            Song.prototype.draw_song_unit_line = function(type, state, duration = 1000) {
+            Song.prototype.draw_song_unit_line = function(type, state, duration = default_transition_duration) {
                 // draw lines from song to input or target
                 input_note_offset = (type == 'input' ? 0 : this.note_width) + song_plot_width/2
                 input_song_x = input_note_offset + this.note_width/2
@@ -686,7 +730,7 @@
                     svg.append("defs").append("marker")
                         .attr("id", marker_id)
                         .attr("viewBox", "0 -5 10 10")
-                        .attr("refX", 0)
+                        .attr("refX", 2)
                         .attr("refY", 0)
                         .attr("markerWidth", 6)
                         .attr("markerHeight", 6)
@@ -759,16 +803,114 @@
 
             var color_units = function(iter_notes, type) {
                 notes = (type == 'input') ? iter_notes.inputs : iter_notes.targets
-                uniq_notes = _.uniq(_.map(notes, function(n) { return n.note}))
-                uniq_notes.forEach(function(ui) {
+                d3.selectAll('.unit_' + type).style('fill','white')
+                notes.forEach(function(ui) {
                     identifier = '#' + css_identifier('unit', type, 0, null, ui)
                     input_unit = d3.select(identifier)
-                    input_unit.transition().duration(1000).delay(1000).style('fill', kolors(ui))
+                    input_unit.transition()
+                        .duration(default_transition_duration).delay(default_transition_duration).style('fill', kolors(ui))
                 })          
             }
 
+            var current_iter = 0
+            var current_iter_notes = iter_note_sets[current_iter]
+            var update_current_iter = function() {
+                current_iter += 1
+                current_iter_notes[current_iter]
+            }
+
+            var sub_iter0 = function() {
+                song.shift(current_iter)
+                current_iter_notes = iter_note_sets[current_iter]
+                color_units(current_iter_notes, 'input')
+                color_units(current_iter_notes, 'target')                
+            }
+
+            var sub_iter1 = function() {
+                reset_lines('xw')
+                xw_lines = _.filter(tlines, function(line) { return line.type == 'xw' })
+
+                notes = current_iter_notes.inputs
+                current_iter_lines = _.filter(xw_lines, function(line) { return _.contains(notes, line.index) })
+                current_iter_lines.forEach(function(line) {
+                    line.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                        .attr('stroke', kolors(line.index))
+                        .attr('class', 'flowline')
+                    line.marker
+                        .transition().duration(default_transition_duration).delay(default_transition_duration)
+                        .style('fill', kolors(line.index))
+                })                
+            }
+
+            var sub_iter2 = function() {
+                reset_lines('wxh')
+                wxh_lines = _.filter(tlines, function(line) { return line.type == 'wxh' })
+                wxh_lines.forEach(function(tl) {                 
+                    activated = _.contains(current_iter_notes.inputs, tl.index)
+                    if (activated) {
+                        tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                          .attr('class', 'flowline')
+                          .attr('stroke', kolors(tl.index))
+                          .attr('opacity', Math.max(0.5, Math.abs(tl.source.weights[tl.index])))
+                        tl.marker.transition().duration(default_transition_duration).delay(default_transition_duration)
+                          .style('fill', kolors(tl.index))
+                          .attr('opacity', Math.max(0.5, Math.abs(tl.source.weights[tl.index])))
+                    }
+                })
+                hidden_states.forEach(function(hs) { hs.update() })                
+            }
+
+            //updating of the lines is done in hs.update()            
+            var sub_iter3 = function() {}
+
+            var sub_iter4 = function() {
+                hy_lines = _.filter(tlines, function(line) { return line.type == 'hy' })
+                hy_lines.forEach(function(tl) {
+                    weight = tl.source.weights[tl.index]
+                    hidden_state = _.find(hidden_states, {layer: tl.layer, neuron: tl.neuron})
+                    prob = weight*hidden_state.value
+                    tl.value = prob
+                    tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                      .attr('class', 'flowline')
+                    tl.path.attr('stroke', wkolors(prob))
+                    tl.marker.style('fill', wkolors(prob))
+                })
+
+                output_unit_sets = _.filter(unit_sets, function(us) { return us.type == 'output' })
+
+                output_unit_sets.forEach(function(us) {
+                    lines = _.where(tlines, {layer: us.layer, type: 'hy'})
+                    
+                    us.d3_group.selectAll('.unit')
+                      .style('fill', function(d, i) { return kolors(i)})
+                      .attr('fill-opacity', function(d, i) {
+                            this_probs = _.map(_.where(lines, {index: i}), function(l) { return l.value })
+                            total_prob = _.reduce(this_probs, function(memo, num) { return memo + num })
+                            console.log(total_prob)
+                            return Math.max(0.15, total_prob)
+                      })
+                })
+            }
+
+            var iter = function() {
+                update_current_iter()
+                sub_iter0()
+                sub_iter1()
+                sub_iter2()
+                sub_iter3()
+                sub_iter4()
+            }
+
+            var reset_lines = function(type) {
+                lines = _.filter(tlines, function(line) { return line.type == type })
+                lines.forEach(function(tl) {
+                    tl.path.classed('flowline', false)
+                    tl.path.classed('link', true)
+                    tl.marker.style('fill', '#ddd')                     
+                })
+            }
+
             var current_state = 'entered'
-            var current_iter_notes = null
             $('#action-button').on('click', function() {
                 if (current_state == 'entered') {
                     $('#info-text').html("The first step is to gather the training data and initialize random weights. Now we're ready to start training!")
@@ -785,30 +927,18 @@
                     $('#info-text').html("In the first iteration, the input is the first note and the target is the second note.")
                     $('#action-button').html("Next Step")
                     song.init_pointers()
-                    song.shift(0)
+
                     song.draw_song_unit_line('input', 'grow')
                     song.draw_song_unit_line('target', 'grow')
 
-                    current_iter_notes = _.find(iter_note_sets, {'iter_index': 0})
-                    color_units(current_iter_notes, 'input')
-                    color_units(current_iter_notes, 'target')
+                    sub_iter0()
  
                     current_state = 'sub_iter0'
                 } else if (current_state == 'sub_iter0') {
                     $('#info-text').html("The input is multiplied by the current set of weights.")
                     xw_lines = _.filter(tlines, function(line) { return line.type == 'xw' })
-                    xw_lines.forEach(function(tl) { return tl.grow() })
-
-                    notes = _.map(current_iter_notes.inputs, function(n) { return n.note })
-                    current_iter_lines = _.filter(xw_lines, function(line) { return _.contains(notes, line.index) })
-                    current_iter_lines.forEach(function(line) {
-                        line.path.transition().duration(1000).delay(1000)
-                            .attr('stroke', kolors(line.index))
-                            .attr('class', 'flowline')
-                        d3.selectAll('#' + css_identifier('marker', line.type, line.layer, line.neuron, line.index))
-                            .transition().duration(1000).delay(1000)
-                            .style('fill', kolors(line.index))
-                    })
+                    xw_lines.forEach(function(tl) { return tl.grow() })                    
+                    sub_iter1()
                     current_state = 'sub_iter1'
                 } else if (current_state == 'sub_iter1') {
                     $('#info-text').html("The weighted sum is then passed to the 'memory' cell. This is the <b>magic of a recurrent neural network</b>")
@@ -816,8 +946,8 @@
                     wxh_lines.forEach(function(tl) {
                         memory_cells_open_close('left')
                         tl.grow()
-                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
                     })
+                    sub_iter2()
                     current_state = 'sub_iter2'
                 } else if (current_state == 'sub_iter2') {
                     $('#info-text').html("The memory cell stores the information in the <b>hidden state</b> which can be recalled on the next iteration.")
@@ -825,16 +955,18 @@
                     hh_lines.forEach(function(tl) {
                         memory_cells_open_close('right')
                         tl.grow()
-                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
+                        tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                          .attr('class', 'flowline')
                     })
+                    sub_iter3()
                     current_state = 'sub_iter3'
                 } else if (current_state == 'sub_iter3') {
                     $('#info-text').html("Finally, the hidden state is multiplied by an output set of weights, which formulates the probability of each note following the current note.")
                     hy_lines = _.filter(tlines, function(line) { return line.type == 'hy' })
                     hy_lines.forEach(function(tl) {
                         tl.grow()
-                        tl.path.transition().duration(1000).delay(1000).attr('class', 'flowline')
                     })
+                    sub_iter4()
                     current_state = 'sub_iter4'                    
                 }
             })
