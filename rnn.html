@@ -45,12 +45,17 @@
                 stroke-width: 0;
             }
 
-            .flowline {
+            .flowline, .flowline-reverse {
               stroke-dasharray: 10, 2;
               stroke-width: 2px;
               animation: flow 2s linear infinite;
               -webkit-animation: flow 2s linear infinite;
             }
+
+            .flowline-reverse {
+              animation: flowreverse 2s linear infinite !important;
+              -webkit-animation: flowreverse 2s linear infinite !important;
+            }            
 
             @keyframes flow {
               from {
@@ -71,10 +76,25 @@
                 stroke-dashoffset: 0;
               }
             }
-            .shadow {
-                -webkit-svg-shadow: 0 0 7px #53BE12;
-                /*-webkit-filter: drop-shadow( -2px -2px 2px #666 );
-                        filter: drop-shadow( -2px -2px 2px #666 ); /* Same syntax as box-shadow */
+
+            @keyframes flowreverse {
+              from {
+                stroke-dashoffset: 0;
+              }
+
+              to {
+                stroke-dashoffset: 12;
+              }
+            }
+
+            @-webkit-keyframes flowreverse {
+              from {
+                stroke-dashoffset: 0;
+              }
+
+              to {
+                stroke-dashoffset: 12;
+              }
             }
   
             .nav-tabs {
@@ -147,7 +167,7 @@
                 medium_grey = '#ccc',
                 song_plot_note_height = song_plot_height/num_classes,
                 layer1_visible = false,
-                default_transition_duration = 500
+                default_sub_iter_duration = 1000
 
 
             var kolors = d3.scale.ordinal()
@@ -305,7 +325,7 @@
                 random_weights = _.map(_.range(0,num_classes), function() { return Math.random()*_.random(-1,1)})
                 this.weights = random_weights
                 this.d3_group.selectAll('rect')
-                    .transition().duration(default_transition_duration)
+                    .transition().duration(default_sub_iter_duration)
                     .style('fill', function(d,i) { return wkolors(random_weights[i]) })
             }
 
@@ -349,7 +369,7 @@
                 })
             }
 
-            HiddenState.prototype.update = function() {
+            HiddenState.prototype.update = function(delay = default_sub_iter_duration) {
                 weights = this.input_weight_set.weights
 
                 notes = notes_to_vector(current_iter_notes.inputs)
@@ -357,7 +377,8 @@
 
                 this.value = update_value
                 this.d3_unit.transition()
-                  .duration(default_transition_duration)
+                  .duration(default_sub_iter_duration)
+                  .delay(delay)
                   .style('fill', hskolors(this.value))
                 outlines = _.where(tlines, {source: this})
 
@@ -468,7 +489,7 @@
                     .attr('y1', unit_width/2)
             }
 
-            var memory_cells_open_close = function(side, layer, duration = default_transition_duration) {
+            var memory_cells_open_close = function(side, layer, duration = default_sub_iter_duration) {
                 _.where(memory_cells, {layer: layer}).forEach(function(mc) {
                     mc.open(duration, side)
                 })
@@ -553,6 +574,8 @@
                 this.index = index;
                 this.source = set.source;
                 this.target = set.target;
+                this.activated = false;
+                this.was_activated = false;
                 tlines.push(this)
             }
 
@@ -585,6 +608,7 @@
                         [0, y_start]
                     ]                     
                 }
+                transfer_line.line_data = line_data
                 return line_data
             }
             TransferLine.prototype.add = function() {
@@ -611,7 +635,7 @@
                 this.path = path; 
             }
 
-            TransferLine.prototype.grow = function(duration = default_transition_duration, delay = 0) {
+            TransferLine.prototype.grow = function(duration = default_sub_iter_duration, delay = 0) {
                 this.path.attr('visibility', 'visible')
                   .transition().duration(duration).delay(delay)
                   .attr('d', transfer_line_function(transfer_line_data(this, 'grow')))
@@ -802,13 +826,13 @@
                                       .attr('fill', function(d) { return kolors(d.note) })                
             }
 
-            Song.prototype.shift = function(iter_index, duration = default_transition_duration) {
+            Song.prototype.shift = function(iter_index, duration = default_sub_iter_duration) {
                 var xscale = d3.scale.linear().domain([0, this.sequence_length]).range([0, song_plot_width]);
                 this.d3_notes.transition().duration(duration)
                      .attr('x', function(d) { return xscale(d.seq_idx) + width/2 - xscale(iter_index) })
             }
 
-            Song.prototype.draw_song_unit_line = function(type, state, duration = default_transition_duration) {
+            Song.prototype.draw_song_unit_line = function(type, state, duration = default_sub_iter_duration) {
                 // draw lines from song to input or target
                 note_offset = (type == 'input' ? 0 : this.note_width) + song_plot_width/2
                 song_x = note_offset + this.note_width/2
@@ -912,64 +936,85 @@
                 d3.select('#layer0').attr('transform', 'translate(' + layer_width/2 + ',0)')
             }
 
-            var color_units = function(iter_notes, type) {
-                notes = (type == 'input') ? iter_notes.inputs : iter_notes.targets
-                d3.selectAll('.unit_' + type).style('fill','white')
-                notes.forEach(function(ui) {
-                    layer = (layer1_visible && type == 'target') ? 1 : 0
-                    identifier = '#' + css_identifier('unit', type, layer, null, ui)
-                    input_unit = d3.select(identifier)
-                    input_unit.transition()
-                        .duration(default_transition_duration).delay(default_transition_duration).style('fill', kolors(ui))
-                })          
-            }
-
             var current_iter = 0
-            var current_iter_notes = iter_note_sets[current_iter]
-            var update_current_iter = function() {
-                current_iter += 1
-                current_iter_notes[current_iter]
+            var current_iter_notes = []
+
+            var color_units = function(type, layer) {
+                these_notes = (type == 'input') ? current_iter_notes.inputs : current_iter_notes.targets
+                _.where(unit_sets, {type: type, layer: layer}).forEach(function(unit_set) {
+                    unit_set.d3_group.selectAll('.unit')
+                      .transition()
+                      .duration(playing ? 0 : default_sub_iter_duration)
+                      .delay(playing ? 0 : default_sub_iter_duration)
+                      .style('fill', function(d, i) { return _.contains(these_notes, i) ? kolors(i) : 'white'})
+                })       
             }
 
             var sub_iter0 = function() {
                 song.shift(current_iter)
-                current_iter_notes = iter_note_sets[current_iter]
-                color_units(current_iter_notes, 'input')
-                color_units(current_iter_notes, 'target')                
+                color_units('input', 0)
+                color_units('target', layer1_visible ? 1 : 0)
             }
 
+            // FIXME: Not dry with sub_iter2
             var sub_iter1 = function() {
-                reset_lines('xw')
                 xw_lines = _.where(tlines, {type: 'xw', layer: 0})
 
-                notes = current_iter_notes.inputs
-                current_iter_lines = _.filter(xw_lines, function(line) { return _.contains(notes, line.index) })
-                current_iter_lines.forEach(function(line) {
-                    line.path.transition().duration(default_transition_duration).delay(default_transition_duration)
-                        .attr('stroke', kolors(line.index))
-                        .attr('class', 'flowline')
-                    line.marker
-                        .transition().duration(default_transition_duration).delay(default_transition_duration)
-                        .style('fill', kolors(line.index))
-                })                
+                xw_lines.forEach(function(tl) {
+                    tl.activated = _.contains(current_iter_notes.inputs, tl.index)
+                    // turn on flowlines not already active
+                    if (tl.activated && !tl.was_activated) {
+                        tl.path.transition()
+                            .duration(default_sub_iter_duration)
+                            .delay(playing ? 0 : default_sub_iter_duration)
+                            .attr('stroke', kolors(tl.index))
+                            .attr('class', 'flowline')
+                        tl.marker
+                            .transition().duration(playing ? 0 : default_sub_iter_duration)
+                            .delay(playing ? 0 : default_sub_iter_duration)
+                            .style('fill', kolors(tl.index))                        
+                    } else if (tl.was_activated && !tl.activated) {
+                        // turn off flowlines no longer active
+                        tl.path.transition()
+                            .duration(default_sub_iter_duration)
+                            .delay(playing ? 0 : default_sub_iter_duration)
+                            .attr('class', 'link')
+                        tl.marker.transition()
+                            .duration(playing ? 0 : default_sub_iter_duration)
+                            .delay(playing ? 0 : default_sub_iter_duration)
+                            .style('fill', light_grey)                        
+                    }
+                    tl.was_activated = tl.activated
+                })        
             }
 
             var sub_iter2 = function() {
-                reset_lines('wxh')
                 wxh_lines = _.where(tlines, {type: 'wxh', layer: 0})
                 wxh_lines.forEach(function(tl) {                 
-                    activated = _.contains(current_iter_notes.inputs, tl.index)
-                    if (activated) {
-                        tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                    tl.activated = _.contains(current_iter_notes.inputs, tl.index)
+                    // turn on flowlines not already active
+                    if (tl.activated && !tl.was_activated) {
+                        tl.path.transition()
+                          .duration(playing ? 0 : default_sub_iter_duration)
+                          .delay(playing ? 0 : default_sub_iter_duration)
                           .attr('class', 'flowline')
                           .attr('stroke', kolors(tl.index))
                           .attr('opacity', Math.max(0.5, Math.abs(tl.source.weights[tl.index])))
-                        tl.marker.transition().duration(default_transition_duration).delay(default_transition_duration)
+                        tl.marker.transition()
+                          .duration(playing ? 0 : default_sub_iter_duration)
+                          .delay(playing ? 0 : default_sub_iter_duration)
                           .style('fill', kolors(tl.index))
                           .attr('opacity', Math.max(0.5, Math.abs(tl.source.weights[tl.index])))
+                    } else if (tl.was_activated && !tl.activated) {
+                        // turn off flowlines no longer active
+                        tl.path.attr('class', 'link')
+                        tl.marker.style('fill', light_grey)
                     }
+                    tl.was_activated = tl.activated
                 })
-                _.where(hidden_states, {layer: 0}).forEach(function(hs) { hs.update() })                
+                _.where(hidden_states, {layer: 0}).forEach(function(hs) {
+                    hs.update(playing ? 0 : default_sub_iter_duration)
+                })
             }
 
             //updating of the lines is done in hs.update()            
@@ -982,8 +1027,9 @@
                     hidden_state = _.find(hidden_states, {layer: tl.layer, neuron: tl.neuron})
                     prob = weight*hidden_state.value
                     tl.value = prob
-                    tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
-                      .attr('class', 'flowline')
+                    tl.path.transition()
+                        .duration(playing ? 0 : default_sub_iter_duration).delay(playing ? 0 : default_sub_iter_duration)
+                        .attr('class', 'flowline')
                     tl.path.attr('stroke', wkolors(prob))
                     tl.marker.style('fill', wkolors(prob))
                 })
@@ -1004,7 +1050,8 @@
             }
 
             var iter = function() {
-                update_current_iter()
+                current_iter += 1
+                current_iter_notes = iter_note_sets[current_iter]
                 sub_iter0()
                 sub_iter1()
                 sub_iter2()
@@ -1012,17 +1059,11 @@
                 sub_iter4()
             }
 
-            var reset_lines = function(type) {
-                lines = _.filter(tlines, function(line) { return line.type == type })
-                lines.forEach(function(tl) {
-                    tl.path.classed('flowline', false)
-                    tl.path.classed('link', true)
-                    tl.marker.style('fill', '#ddd')                     
-                })
-            }
-
             var current_state = 'entered'
+            var playing = false
             $('#action-button').on('click', function() {
+                current_iter_notes = iter_note_sets[current_iter]
+
                 if (current_state == 'entered') {
                     $('#info-text').html("The first step is to gather the training data and initialize random weights. Now we're ready to start training!")
                     $('#action-button').html("First step: Input song")
@@ -1033,7 +1074,8 @@
                         set.update_weights();
                     })
 
-                    add_label_pointer(weight_sets[0].d3_group, 'input weights', 'top right')
+                    add_label_pointer(_.find(weight_sets, {layer: 0, type: 'xw', neuron: 0}).d3_group, 'input weights', 'top right')
+                    add_label_pointer(_.find(weight_sets, {layer: 1, type: 'xw', neuron: 0}).d3_group, 'input weights', 'top right')
 
                     current_state = 'network_setup'
                 } else if (current_state == 'network_setup') {
@@ -1044,8 +1086,10 @@
                     song.draw_song_unit_line('input', 'grow')
                     song.draw_song_unit_line('target', 'grow')
 
-                    add_label_pointer(unit_sets[0].d3_group, 'inputs', 'bottom left')
-                    add_label_pointer(unit_sets[4].d3_group, 'targets', 'top right')
+                    add_label_pointer(
+                        _.find(unit_sets, {layer: 0, type: 'input'}).d3_group, 'inputs', 'bottom left')
+                    add_label_pointer(
+                        _.find(unit_sets, {layer: 0, type: 'target'}).d3_group, 'targets', 'top right')
 
                     sub_iter0()
  
@@ -1063,7 +1107,7 @@
                         memory_cells_open_close('left', 0)
                         tl.grow()
                     })
-                    add_label_pointer(memory_cells[0].d3_group, 'memory', 'top right')
+                    add_label_pointer(_.find(memory_cells, {layer: 0}).d3_group, 'memory', 'top right')
                     sub_iter2()
                     current_state = 'sub_iter2'
                 } else if (current_state == 'sub_iter2') {
@@ -1072,21 +1116,50 @@
                     hh_lines.forEach(function(tl) {
                         memory_cells_open_close('right', 0)
                         tl.grow()
-                        tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
+                        tl.path.transition().duration(default_sub_iter_duration).delay(default_sub_iter_duration)
                           .attr('class', 'flowline')
                     })
-                    add_label_pointer(weight_sets[1].d3_group, 'output weights', 'top right')
+                    add_label_pointer(_.find(weight_sets, {layer: 0, neuron: 0, type: 'hy'}).d3_group, 'output weights', 'top right')
                     sub_iter3()
                     current_state = 'sub_iter3'
                 } else if (current_state == 'sub_iter3') {
                     $('#info-text').html("Finally, the hidden state is multiplied by an output set of weights, which formulates the probability of each note following the current note.")
+
                     hy_lines = _.where(tlines, {type: 'hy', layer: 0})
                     hy_lines.forEach(function(tl) {
                         tl.grow()
                     })
-                    add_label_pointer(unit_sets[2].d3_group, 'outputs', 'top')
+                    add_label_pointer(_.find(unit_sets, {type: 'output', layer: 0}).d3_group, 'outputs', 'top')
                     sub_iter4()
                     current_state = 'sub_iter4'                    
+                } else if (current_state == 'sub_iter4') {
+                    $('#info-text').html("We calculate how wrong our guess was and update the weights. (ADD ME: VISUAL REPRESENTATION OF LOSS")
+                    $('#action-button').html("Update weights")
+
+                    current_state = 'backpropagate'
+                } else if (current_state == 'backpropagate') {
+                    $('#info-text').html("Now that we see how the network is working, let's train on the full song!")
+                    $('#action-button').html("Train all")
+
+                    // reverse lines
+                    tlines.forEach(function(line, i) {
+                        reversed_line_data = line.line_data.reverse()
+                        reversed_line_data = _.map(reversed_line_data, function(ld) { return [ld[0]+5, ld[1]] })
+                        line.path.transition().duration(default_sub_iter_duration)
+                            .attr('d', transfer_line_function(reversed_line_data))
+                    })                    
+                    current_state = 'train all'
+                } else if (current_state == 'train all') {
+                    // re-reverse lines
+                    playing = true
+                    tlines.forEach(function(line, i) {
+                        line.path.transition().duration(default_sub_iter_duration)
+                            .attr('d', transfer_line_function(line.line_data.reverse()))
+                    })
+                    for (i = 1; i < song.sequence_length-1; i++) {
+                        // nothing is done in sub_iter 3 so though we have 5 sub iterations we only care about 4 of them
+                        setTimeout(function(){ iter(); }, default_sub_iter_duration + i*default_sub_iter_duration);
+                    }
                 }
             })
             
