@@ -2,14 +2,27 @@
 <html>
     <meta charset="utf-8">
     <head>
+        <!-- BOOTSTRAP LINKS -->
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <!-- jQuery library -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+        <!-- Latest compiled JavaScript -->
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>         
         <style>
             body {
                 /*background: #333;*/
+                font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif; 
+                font-weight: 200;
             }
             #container {
                 width: 1024px;
                 display: block;
                 margin: 40px auto;
+            }
+
+            svg {
+                padding-top: 10px; /*protects our labels*/
             }
 
             .memory_cell {
@@ -63,27 +76,40 @@
                 /*-webkit-filter: drop-shadow( -2px -2px 2px #666 );
                         filter: drop-shadow( -2px -2px 2px #666 ); /* Same syntax as box-shadow */
             }
-        </style>
-        <!-- BOOTSTRAP LINKS -->
-        <!-- Latest compiled and minified CSS -->
-        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
-        <!-- jQuery library -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
-        <!-- Latest compiled JavaScript -->
-        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>         
+  
+            .nav-tabs {
+                float: right;
+                width: 44%;
+                font-size: 10px;
+                margin-top: 20px;
+            }
+
+            .nav-tabs li {
+                float: right;
+            }
+
+        </style>    
         <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
     </head>
 
 
     <body>
         <div id="container">
-            <div class="panel panel-default">
+            <ul class="nav nav-tabs">
+              <li><a href="#">Create</a></li>
+              <li class="active"><a href="#">Train</a></li>              
+              <li><a href="#">What is a neural network?</a></li>
+              <li><a href="#">What is a neuron?</a></li>              
+              <li><a href="#">Home</a></li>              
+            </ul>        
+            <!-- Information Panel -->
+            <div class="panel panel-default" style="width: 54%; position: relative; height: 100px;">
               <div class="panel-body">                  
-                  <span id="info-text">Welcome to a <b>recurrent neural network!</b> We're going to train this network to create new music.</span>
+                  <span id="info-text">Welcome to a <b>recurrent neural network!</b> Here, we're going to train a network to create new music.</span>
                   &nbsp;
-                  <button type="button" class="btn btn-success btn-sm" id="action-button">Setup Network</button>
+                  <button type="button" class="btn btn-success btn-sm" id="action-button" style="position: absolute; right: 20px; bottom:20px;">Setup Network</button>
               </div>
-            </div>            
+            </div>                   
         </div>   
     </body>
 
@@ -121,7 +147,7 @@
                 medium_grey = '#ccc',
                 song_plot_note_height = song_plot_height/num_classes,
                 layer1_visible = false,
-                default_transition_duration = 200
+                default_transition_duration = 500
 
 
             var kolors = d3.scale.ordinal()
@@ -224,11 +250,11 @@
             }
 
             Neuron.prototype.add = function() {
-                group = layer_group(this).append("g")
+                this.group = layer_group(this).append("g")
                     .attr("class", "neuron")
                     .attr("id", css_identifier("neuron", null, this.layer, this.index, null))
                     .attr("transform", "translate(" + this.x_position() + "," + this.y_position() + ")") 
-                group.append('rect')
+                this.group.append('rect')
                     .attr('class', 'neuron_container')
                     .attr('width', neuron_width)
                     .attr('height', neuron_height)
@@ -346,59 +372,63 @@
             var MemoryCell = function(hidden_state, neuron) {
                 this.hidden_state = hidden_state
                 this.neuron = neuron
+                this.layer = hidden_state.layer
                 memory_cells.push(this)
             }
 
             MemoryCell.prototype.add = function() {
-               // Memory cell top
-                this.neuron.append('svg:line')
+                mc_group = this.neuron.append('g').attr('class','memory_cell_group')
+                    .attr('transform', 'translate(' + this.hidden_state.x_offset + ',' + this.hidden_state.y_offset + ')')
+                this.d3_group = mc_group
+                // Memory cell top
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_top')
-                    .attr('x1', this.hidden_state.x_offset - unit_width)
-                    .attr('x2', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('y1', this.hidden_state.y_offset - unit_width)
-                    .attr('y2', this.hidden_state.y_offset - unit_width)
+                    .attr('x1', - unit_width)
+                    .attr('x2', + 2*unit_width)
+                    .attr('y1', - unit_width)
+                    .attr('y2', - unit_width)
 
                 // memory cell right top
-                this.neuron.append('svg:line')
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_right_top')
-                    .attr('x1', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('x2', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('y1', this.hidden_state.y_offset - unit_width)
-                    .attr('y2', this.hidden_state.y_offset + unit_width/2)
+                    .attr('x1', + 2*unit_width)
+                    .attr('x2', + 2*unit_width)
+                    .attr('y1', - unit_width)
+                    .attr('y2', + unit_width/2)
 
-                this.neuron.append('svg:line')
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_right_bottom')
-                    .attr('x1', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('x2', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('y1', this.hidden_state.y_offset + unit_width/2)
-                    .attr('y2', this.hidden_state.y_offset + 2*unit_width)
+                    .attr('x1', + 2*unit_width)
+                    .attr('x2', + 2*unit_width)
+                    .attr('y1', + unit_width/2)
+                    .attr('y2', + 2*unit_width)
 
                 // memory cell bottom
-                this.neuron.append('svg:line')
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_bottom')
-                    .attr('x1', this.hidden_state.x_offset - unit_width)
-                    .attr('x2', this.hidden_state.x_offset + 2*unit_width)
-                    .attr('y1', this.hidden_state.y_offset + 2*unit_width)
-                    .attr('y2', this.hidden_state.y_offset + 2*unit_width)
+                    .attr('x1', - unit_width)
+                    .attr('x2', + 2*unit_width)
+                    .attr('y1', + 2*unit_width)
+                    .attr('y2', + 2*unit_width)
 
                 // memory cell left top
-                this.neuron.append('svg:line')
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_left_top')
-                    .attr('x1', this.hidden_state.x_offset - unit_width)
-                    .attr('x2', this.hidden_state.x_offset - unit_width)
-                    .attr('y1', this.hidden_state.y_offset - unit_width)
-                    .attr('y2', this.hidden_state.y_offset + unit_width/2)
+                    .attr('x1', - unit_width)
+                    .attr('x2', - unit_width)
+                    .attr('y1', - unit_width)
+                    .attr('y2', + unit_width/2)
                 // memory cell left bottom
-                this.neuron.append('svg:line')
+                mc_group.append('svg:line')
                     .attr('class', 'memory_cell memory_cell_left_bottom')
-                    .attr('x1', this.hidden_state.x_offset - unit_width)
-                    .attr('x2', this.hidden_state.x_offset - unit_width)
-                    .attr('y1', this.hidden_state.y_offset + unit_width/2)
-                    .attr('y2', this.hidden_state.y_offset + 2*unit_width)
+                    .attr('x1', - unit_width)
+                    .attr('x2', - unit_width)
+                    .attr('y1', + unit_width/2)
+                    .attr('y2', + 2*unit_width)
             }
 
             MemoryCell.prototype.open = function(duration, side) {
-                new_x = this.hidden_state.x_offset
+                new_x = 0
                 if (side == 'left') {
                     new_x += -unit_width - 3*unit_width/2
                 } else {
@@ -410,13 +440,13 @@
                     .ease('cubic')
                     .duration(duration/2)
                     .attr('x2', new_x)
-                    .attr('y2', this.hidden_state.y_offset - unit_width)
+                    .attr('y2', -unit_width)
 
                 this.neuron.selectAll('.memory_cell_' + side + '_bottom').transition()
                     .duration(duration/2)
                     .ease('cubic')
                     .attr('x1', new_x)
-                    .attr('y1', this.hidden_state.y_offset + 3*unit_width/2 + unit_width/2)
+                    .attr('y1', 3*unit_width/2 + unit_width/2)
             }
 
             MemoryCell.prototype.close = function(duration, side) {
@@ -430,16 +460,16 @@
                 this.neuron.selectAll('.memory_cell_' + side + '_top').transition()
                     .duration(duration/2).delay(duration/2)
                     .attr('x2', new_x)
-                    .attr('y2', this.hidden_state.y_offset + unit_width/2)
+                    .attr('y2', unit_width/2)
 
                 this.neuron.selectAll('.memory_cell_' + side + '_bottom').transition()
                     .duration(duration/2).delay(duration/2)
                     .attr('x1', new_x)
-                    .attr('y1', this.hidden_state.y_offset + unit_width/2)
+                    .attr('y1', unit_width/2)
             }
 
-            var memory_cells_open_close = function(side, duration = default_transition_duration) {
-                memory_cells.forEach(function(mc) {
+            var memory_cells_open_close = function(side, layer, duration = default_transition_duration) {
+                _.where(memory_cells, {layer: layer}).forEach(function(mc) {
                     mc.open(duration, side)
                 })
                 // memory_cells.forEach(function(mc) {
@@ -587,6 +617,85 @@
                   .attr('d', transfer_line_function(transfer_line_data(this, 'grow')))
             }
 
+            var add_label_pointer = function(d3_selection, text, position) {
+                offset = 30
+                client_rect = d3_selection[0][0].getBoundingClientRect()
+                start_width = client_rect.width
+                switch (position) {
+                    case 'bottom left':
+                        x_offset = -1.5*offset;
+                        y_offset = offset + client_rect.height;
+                        break;
+                    case 'bottom':
+                        x_offset = -unit_width/2
+                        y_offset = offset*1.25 + client_rect.height;
+                        break;
+                    case 'top':
+                        x_offset = -unit_width/2;
+                        y_offset = -offset*1.25;
+                        break;
+                    default: 
+                        x_offset = offset
+                        y_offset = -offset
+                }
+
+                label_pointer_group = d3_selection.append('g')
+                                          .attr('class','label_pointer_group')
+                                          .attr('transform', 'translate(' + x_offset + ',' + y_offset + ')')
+
+                label_pointer_group.append('text').text(text)
+
+                client_rect = d3_selection[0][0].getBoundingClientRect()
+                new_width = client_rect.width
+                width_diff = new_width-start_width
+
+                marker_id = css_identifier('label_pointer', text.split(" ").join("_"))
+                svg.append("defs").append("marker")
+                    .attr('class', 'label_pointer_marker')
+                    .attr("id", marker_id)
+                    .attr("viewBox", "0 -5 10 10")
+                    .attr("refX", 2)
+                    .attr("refY", 0)
+                    .attr("markerWidth", 6)
+                    .attr("markerHeight", 6)
+                    .attr("orient", "auto")
+                  .append("path")
+                    .attr("d", "M0,-5L10,0L0,5"); 
+                // FIXME: pixel pushing
+                line_y_offset = (position == 'bottom left') ? -14 : -5
+                line_x_start = (position == 'bottom left') ? width_diff/2 : -4
+                offset = (position == 'bottom left') ? -(offset + unit_width/2) : offset - 5
+                if (position == 'bottom left') {
+                    line_data = [
+                        [line_x_start, line_y_offset], 
+                        [line_x_start, offset],
+                        [-x_offset-5, offset]
+                    ]
+                } else if (position == 'top right') {
+                    line_data = [
+                        [line_x_start, line_y_offset], 
+                        [-x_offset + unit_width/2, line_y_offset],
+                        [-x_offset + unit_width/2, offset]
+                    ]
+                } else if (position == 'bottom') {
+                    line_data = [
+                        [text.length*3, line_y_offset-5],
+                        [text.length*3, -offset - 5]
+                    ]
+                } else if (position == 'top') {
+                    line_data = [
+                        [unit_width, 6],
+                        [unit_width, offset+4]
+                    ]
+                }
+                label_pointer_group.append('path')
+                        .attr("d", transfer_line_function(line_data))
+                        .attr('fill', 'none')
+                        .attr('stroke', medium_grey)
+                        .attr("marker-end", "url(#" + marker_id + ")"); 
+
+            }
+
             add_network = function() {
                 // add input units
                 unitsets = [['input',0],['input',1],['output',0],['output',1],['target',0],['target',1]]
@@ -701,27 +810,29 @@
 
             Song.prototype.draw_song_unit_line = function(type, state, duration = default_transition_duration) {
                 // draw lines from song to input or target
-                input_note_offset = (type == 'input' ? 0 : this.note_width) + song_plot_width/2
-                input_song_x = input_note_offset + this.note_width/2
-                input_input_x = (layer1_visible ? 0 : layer_width/2) 
+                note_offset = (type == 'input' ? 0 : this.note_width) + song_plot_width/2
+                song_x = note_offset + this.note_width/2
+                // FIXME: wacky conditional
+                target_x = (layer1_visible ? 0 : layer_width/2) 
                     + (type == 'input' ? unit_width/2 : (layer_width - unit_width/2))
-                input_song_y = height - song_plot_height
-                input_input_y = unit_set_y_position + weight_set_height
+                    + ((type == 'target' && layer1_visible) ? layer_width : 0)
+                song_y = height - song_plot_height
+                target_y = unit_set_y_position + weight_set_height
 
                 if (state == 'grow') {
-                    input_line_data = [
-                        [input_song_x, input_song_y],
-                        [input_song_x, input_song_y - (input_song_y - input_input_y)/4],
-                        [input_input_x, input_song_y - 3*(input_song_y - input_input_y)/4],
-                        [input_input_x, input_input_y + 6] // plus 6 for the arrow
+                    line_data = [
+                        [song_x, song_y],
+                        [song_x, song_y - (song_y - target_y)/4],
+                        [target_x, song_y - 3*(song_y - target_y)/4],
+                        [target_x, target_y + 6] // plus 6 for the arrow
                     ]
                     if (type == 'input') {
-                        this.song_input_unit_path.transition()
-                            .duration(duration).attr('d', transfer_line_function(input_line_data))
+                        this.song_unit_path.transition()
+                            .duration(duration).attr('d', transfer_line_function(line_data))
                             .attr('class', 'flowline')                            
                     } else {
                         this.song_target_unit_path.transition()
-                            .duration(duration).attr('d', transfer_line_function(input_line_data))
+                            .duration(duration).attr('d', transfer_line_function(line_data))
                             .attr('class', 'flowline')
                     }
                     
@@ -737,20 +848,20 @@
                         .attr("orient", "auto")
                       .append("path")
                         .attr("d", "M0,-5L10,0L0,5");                    
-                    input_line_data = [
-                        [input_song_x, input_song_y],
-                        [input_song_x, input_song_y],
-                        [input_song_x, input_song_y],
-                        [input_song_x, input_song_y]
+                    line_data = [
+                        [song_x, song_y],
+                        [song_x, song_y],
+                        [song_x, song_y],
+                        [song_x, song_y]
                     ]
                     path = svg.append('path')
-                        .attr("d", transfer_line_function(input_line_data))
+                        .attr("d", transfer_line_function(line_data))
                         .attr('class', 'link')
                         .attr("stroke", medium_grey)
                         .attr('fill', 'none')
                         .attr("marker-end", "url(#" + marker_id + ")"); 
                     if (type == 'input') {
-                        this.song_input_unit_path = path
+                        this.song_unit_path = path
                     } else {
                         this.song_target_unit_path = path
                     }
@@ -805,7 +916,8 @@
                 notes = (type == 'input') ? iter_notes.inputs : iter_notes.targets
                 d3.selectAll('.unit_' + type).style('fill','white')
                 notes.forEach(function(ui) {
-                    identifier = '#' + css_identifier('unit', type, 0, null, ui)
+                    layer = (layer1_visible && type == 'target') ? 1 : 0
+                    identifier = '#' + css_identifier('unit', type, layer, null, ui)
                     input_unit = d3.select(identifier)
                     input_unit.transition()
                         .duration(default_transition_duration).delay(default_transition_duration).style('fill', kolors(ui))
@@ -828,7 +940,7 @@
 
             var sub_iter1 = function() {
                 reset_lines('xw')
-                xw_lines = _.filter(tlines, function(line) { return line.type == 'xw' })
+                xw_lines = _.where(tlines, {type: 'xw', layer: 0})
 
                 notes = current_iter_notes.inputs
                 current_iter_lines = _.filter(xw_lines, function(line) { return _.contains(notes, line.index) })
@@ -844,7 +956,7 @@
 
             var sub_iter2 = function() {
                 reset_lines('wxh')
-                wxh_lines = _.filter(tlines, function(line) { return line.type == 'wxh' })
+                wxh_lines = _.where(tlines, {type: 'wxh', layer: 0})
                 wxh_lines.forEach(function(tl) {                 
                     activated = _.contains(current_iter_notes.inputs, tl.index)
                     if (activated) {
@@ -857,14 +969,14 @@
                           .attr('opacity', Math.max(0.5, Math.abs(tl.source.weights[tl.index])))
                     }
                 })
-                hidden_states.forEach(function(hs) { hs.update() })                
+                _.where(hidden_states, {layer: 0}).forEach(function(hs) { hs.update() })                
             }
 
             //updating of the lines is done in hs.update()            
             var sub_iter3 = function() {}
 
             var sub_iter4 = function() {
-                hy_lines = _.filter(tlines, function(line) { return line.type == 'hy' })
+                hy_lines = _.where(tlines, {type: 'hy', layer: 0})
                 hy_lines.forEach(function(tl) {
                     weight = tl.source.weights[tl.index]
                     hidden_state = _.find(hidden_states, {layer: tl.layer, neuron: tl.neuron})
@@ -876,7 +988,7 @@
                     tl.marker.style('fill', wkolors(prob))
                 })
 
-                output_unit_sets = _.filter(unit_sets, function(us) { return us.type == 'output' })
+                output_unit_sets = _.where(unit_sets, {type: 'output',layer:0})
 
                 output_unit_sets.forEach(function(us) {
                     lines = _.where(tlines, {layer: us.layer, type: 'hy'})
@@ -886,7 +998,6 @@
                       .attr('fill-opacity', function(d, i) {
                             this_probs = _.map(_.where(lines, {index: i}), function(l) { return l.value })
                             total_prob = _.reduce(this_probs, function(memo, num) { return memo + num })
-                            console.log(total_prob)
                             return Math.max(0.15, total_prob)
                       })
                 })
@@ -922,50 +1033,58 @@
                         set.update_weights();
                     })
 
+                    add_label_pointer(weight_sets[0].d3_group, 'input weights', 'top right')
+
                     current_state = 'network_setup'
                 } else if (current_state == 'network_setup') {
-                    $('#info-text').html("In the first iteration, the input is the first note and the target is the second note.")
+                    $('#info-text').html("In the first iteration, the <b>input</b> is the first note and the <b>target</b> is the second note.")
                     $('#action-button').html("Next Step")
                     song.init_pointers()
 
                     song.draw_song_unit_line('input', 'grow')
                     song.draw_song_unit_line('target', 'grow')
 
+                    add_label_pointer(unit_sets[0].d3_group, 'inputs', 'bottom left')
+                    add_label_pointer(unit_sets[4].d3_group, 'targets', 'top right')
+
                     sub_iter0()
  
                     current_state = 'sub_iter0'
                 } else if (current_state == 'sub_iter0') {
-                    $('#info-text').html("The input is multiplied by the current set of weights.")
-                    xw_lines = _.filter(tlines, function(line) { return line.type == 'xw' })
+                    $('#info-text').html("The input is multiplied by a set of weights.")
+                    xw_lines = _.where(tlines, {type: 'xw', layer: 0})
                     xw_lines.forEach(function(tl) { return tl.grow() })                    
                     sub_iter1()
                     current_state = 'sub_iter1'
                 } else if (current_state == 'sub_iter1') {
-                    $('#info-text').html("The weighted sum is then passed to the 'memory' cell. This is the <b>magic of a recurrent neural network</b>")
-                    wxh_lines = _.filter(tlines, function(line) { return line.type == 'wxh' })
+                    $('#info-text').html("The weighted sum is then passed to the \"memory\" cell. This is the <b>magic of a recurrent neural network.</b>")
+                    wxh_lines = _.where(tlines, {type: 'wxh', layer: 0})
                     wxh_lines.forEach(function(tl) {
-                        memory_cells_open_close('left')
+                        memory_cells_open_close('left', 0)
                         tl.grow()
                     })
+                    add_label_pointer(memory_cells[0].d3_group, 'memory', 'top right')
                     sub_iter2()
                     current_state = 'sub_iter2'
                 } else if (current_state == 'sub_iter2') {
                     $('#info-text').html("The memory cell stores the information in the <b>hidden state</b> which can be recalled on the next iteration.")
-                    hh_lines = _.filter(tlines, function(line) { return line.type == 'hh' })
+                    hh_lines = _.where(tlines, {type: 'hh', layer: 0})
                     hh_lines.forEach(function(tl) {
-                        memory_cells_open_close('right')
+                        memory_cells_open_close('right', 0)
                         tl.grow()
                         tl.path.transition().duration(default_transition_duration).delay(default_transition_duration)
                           .attr('class', 'flowline')
                     })
+                    add_label_pointer(weight_sets[1].d3_group, 'output weights', 'top right')
                     sub_iter3()
                     current_state = 'sub_iter3'
                 } else if (current_state == 'sub_iter3') {
                     $('#info-text').html("Finally, the hidden state is multiplied by an output set of weights, which formulates the probability of each note following the current note.")
-                    hy_lines = _.filter(tlines, function(line) { return line.type == 'hy' })
+                    hy_lines = _.where(tlines, {type: 'hy', layer: 0})
                     hy_lines.forEach(function(tl) {
                         tl.grow()
                     })
+                    add_label_pointer(unit_sets[2].d3_group, 'outputs', 'top')
                     sub_iter4()
                     current_state = 'sub_iter4'                    
                 }
