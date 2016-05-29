@@ -1,5 +1,5 @@
 var hidden_states = []
-var HiddenState = function(layer, neuron) {
+var HiddenState = function(layer, neuron, network) {
     this.layer = layer;
     this.neuron = neuron;
     this.y_offset = (neuron_height - unit_height)/2;
@@ -8,15 +8,16 @@ var HiddenState = function(layer, neuron) {
     this.value = 0;
     this.input_weight_set = _.find(weight_sets, {layer: this.layer, neuron: this.neuron, type: 'xw'})
     this.output_weight_set = _.find(weight_sets, {layer: this.layer, neuron: this.neuron, type: 'hy'})
+    this.network = network;
     hidden_states.push(this)
 }
 
 HiddenState.prototype.add = function() {
-    var neuron = d3.select("#neuron_L" + this.layer + "_N" + this.neuron)
+    var neuron = d3.select("#" + this.network + "_neuron_L" + this.layer + "_i" + this.neuron)
 
     this.d3_unit = neuron.append('rect')
                     .attr('class', 'hidden_state unit')
-                    .attr('id', css_identifier('hidden_state', null, this.layer, this.neuron, null))
+                    .attr('id', css_identifier('hidden_state', this))
                     .attr('width', unit_width)
                     .attr('height', unit_height)
                     .attr('x', this.x_offset)

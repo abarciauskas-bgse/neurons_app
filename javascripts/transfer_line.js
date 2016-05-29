@@ -7,8 +7,7 @@ var TransferLine = function(type, layer, neuron, set, index) {
     this.index = index;
     this.source = set.source;
     this.target = set.target;
-    this.activated = false;
-    this.was_activated = false;
+    this.network = set.network;
     tlines.push(this)
 }
 
@@ -44,7 +43,7 @@ TransferLine.prototype.transfer_line_data = function(state) {
 }
 
 TransferLine.prototype.add = function() {
-    marker_id = css_identifier('marker', this.type, this.layer, this.neuron, this.index)
+    marker_id = css_identifier('marker', this)
     marker = add_marker(marker_id)
     this.marker = marker   
     path = this.set.d3_group.append("path")

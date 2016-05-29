@@ -14,11 +14,11 @@ add_network = function(network) {
 
             weight_types = ['xw', 'hy']
             weight_types.forEach(function(type) {
-                weight_set = new WeightSet(type, layer_i, neuron_i);
+                weight_set = new WeightSet(type, layer_i, neuron_i, network);
                 weight_set.add()
             })
 
-            hidden_state = new HiddenState(layer_i, neuron_i)
+            hidden_state = new HiddenState(layer_i, neuron_i, network)
             hidden_state.add()
 
             transfer_line_types = ['xw', 'hh', 'hy', 'wxh']

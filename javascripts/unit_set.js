@@ -5,7 +5,7 @@ var UnitSet = function(type, layer, network) {
     this.layer = layer;
     this.y_offset = unit_set_y_position;
     this.y_position = unit_set_y_position;
-    this.network = network
+    this.network = network;
     this.values = _.map(_.range(0,num_classes), function(i) { return i*0 })
     unit_sets.push(this)
 }
@@ -32,16 +32,15 @@ UnitSet.prototype.x_position = function() {
 UnitSet.prototype.add = function() {
     group = layer_group(this, this.network).append("g")
         .attr("class", "unit_set")
-        .attr("id", css_identifier('unit_set', this.type, this.layer, null, null))
+        .attr("id", css_identifier('unit_set', this))
         .attr("transform", "translate(" + this.x_position() + "," + this.y_offset + ")")
-    var layer = this.layer
-    var type = this.type
     this.d3_group = group
+    css_set_id = css_identifier('unit', this)
     group.selectAll('rect')
         .data(d3.range(0,num_classes))
         .enter().append('rect')
-            .attr('class', function(d, i) { return 'unit ' + css_identifier('unit', type, null, null, null) })
-            .attr('id', function(d, i) { return css_identifier('unit', type, layer, null, i) })
+            .attr('class', 'unit')
+            .attr('id', function(d, i) { return css_set_id + i })
             .attr('width', unit_width)
             .attr('height', unit_height)
             .attr('y', function(d, i) { return i*unit_height})

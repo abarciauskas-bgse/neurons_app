@@ -1,9 +1,9 @@
-var css_identifier = function(object_type, object_type_type, layer, neuron, index) {
-    return object_type
-        + (object_type_type == null ? '' : '_' + object_type_type)
-        + (layer == null ? '' : '_L' + layer)
-        + (neuron == null ? '' : '_N' + neuron)
-        + (index == null ? '' : '_i' + index)
+var css_identifier = function(object_type, obj) {
+    return obj.network + '_' + object_type
+        + ((obj.type == null) ? '' : '_' + obj.type)
+        + ((obj.layer == null) ? '' : '_L' + obj.layer)
+        + ((obj.neuron == null) ? '' : '_N' + obj.neuron)
+        + ((obj.index == null) ? '' : '_i' + obj.index)
 }
 
 var layer_group = function(object, network) {
@@ -58,7 +58,7 @@ var add_label_pointer = function(d3_selection, text, position) {
     new_width = client_rect.width
     width_diff = new_width-start_width
 
-    marker_id = css_identifier('label_pointer', text.split(" ").join("_"))
+    marker_id = 'label_pointer_' + text.split(" ").join("_")
     add_marker(marker_id)
     // FIXME: pixel pushing
     line_y_offset = (position == 'bottom left') ? -14 : -5
@@ -146,6 +146,8 @@ var update_units = function(layer, type) {
     lines = _.where(tlines, {layer: hy_lines_layer, type: 'hy'})
 
     unit_set.d3_group.selectAll('.unit')
+      .transition()
+      .duration(default_sub_iter_duration)
       .style('fill', function(d, i) { return kolors(i)})
       .attr('fill-opacity', function(d, i) {
             this_probs = _.map(_.where(lines, {index: i}), function(l) { return l.value })

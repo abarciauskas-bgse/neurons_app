@@ -65,7 +65,7 @@ var sub_iter4 = function(layer = 0) {
         prob = weight*hidden_state.value
         tl.value = prob
         tl.path.transition()
-            .duration(playing ? 0 : default_sub_iter_duration)
+            .duration(default_sub_iter_duration)
             .delay(playing ? 0 : default_sub_iter_duration)
             .attr('class', 'flowline')
         tl.path.attr('stroke', wkolors(prob))
@@ -79,6 +79,9 @@ var sub_iter4 = function(layer = 0) {
 var iter = function() {
     current_iter += 1
     current_iter_notes = iter_note_sets[current_iter]
+    weight_sets.forEach(function(set) {
+        set.update_weights();
+    })    
     sub_iter0()
     sub_iter1()
     sub_iter2()

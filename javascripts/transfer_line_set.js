@@ -51,7 +51,7 @@ TransferLineSet.prototype.add = function() {
     // add a group with x offset
     group = layer_group(this, this.network).append('g')
                .attr('class', 'tl_set')
-               .attr('id', css_identifier('tl_set', this.type, this.layer, this.neuron, null))
+               .attr('id', css_identifier('tl_set', this))
                .attr('transform', 'translate(' + this.x_offset() + ',0)')
     this.d3_group = group;
     for (i = 0; i < num_classes; i++) {

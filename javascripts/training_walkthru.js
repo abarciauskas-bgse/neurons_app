@@ -134,7 +134,10 @@ $('#training-action-button').on('click', function() {
             reversed_line_data = _.map(reversed_line_data, function(ld) { return [ld[0]+5, ld[1]] })
             line.path.transition().duration(default_sub_iter_duration)
                 .attr('d', line_function(reversed_line_data))
-        })           
+        })
+        weight_sets.forEach(function(set) {
+            set.update_weights();
+        })             
         current_state = 'train all'
     } else if (current_state == 'train all') {
         // re-reverse lines

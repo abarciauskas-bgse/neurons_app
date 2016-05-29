@@ -1,4 +1,4 @@
-var Song = function(filename) {
+var Song = function(filename, network) {
     this.filename = filename;
     this.song_data = null;
     this.sequence_length = null;
@@ -6,6 +6,8 @@ var Song = function(filename) {
     this.song_input_unit_path = null;
     this.song_target_unit_path = null;
     this.d3_notes = null;
+    this.network = network;
+    
     // function plot_song(song)
     var song = this
     d3.json(filename, function(data) {
@@ -78,7 +80,7 @@ Song.prototype.draw_song_unit_line = function(type, state, duration = default_su
         }
 
     } else if (state == 'init') {
-        marker_id = css_identifier('marker', type, null, null, null)
+        marker_id = css_identifier('marker', this)
         add_marker(marker_id)
         line_data = [
             [song_x, song_y],

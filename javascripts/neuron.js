@@ -20,7 +20,7 @@ Neuron.prototype.x_position = function() {
 Neuron.prototype.add = function() {
     this.group = layer_group(this, this.network).append("g")
         .attr("class", "neuron")
-        .attr("id", css_identifier("neuron", null, this.layer, this.index, null))
+        .attr("id", css_identifier("neuron", this))
         .attr("transform", "translate(" + this.x_position() + "," + this.y_position() + ")") 
     this.group.append('rect')
         .attr('class', 'neuron_container')
